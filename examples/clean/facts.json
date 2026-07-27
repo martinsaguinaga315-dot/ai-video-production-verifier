@@ -1,0 +1,135 @@
+{
+  "title": "《下课前一秒》",
+  "total_duration": 14.0,
+  "shot_count": 5,
+  "characters": [
+    {
+      "character_id": "女大学生",
+      "fixed_costume_terms": [
+        "浅色上衣",
+        "深色简洁战斗服"
+      ],
+      "forbidden_costume_terms": [
+        "夸张铠甲",
+        "动漫感服装"
+      ],
+      "fixed_props": [
+        "笔",
+        "书本",
+        "笔记本",
+        "水杯"
+      ]
+    }
+  ],
+  "props": [
+    {
+      "prop_id": "笔",
+      "owner": "女大学生",
+      "forbidden_terms": []
+    },
+    {
+      "prop_id": "书本",
+      "owner": "女大学生",
+      "forbidden_terms": []
+    },
+    {
+      "prop_id": "笔记本",
+      "owner": "女大学生",
+      "forbidden_terms": []
+    },
+    {
+      "prop_id": "水杯",
+      "owner": "女大学生",
+      "forbidden_terms": []
+    }
+  ],
+  "shots": [
+    {
+      "shot_id": "S01",
+      "start_time": 0.0,
+      "end_time": 4.0,
+      "required_events": [
+        "女大学生低头看书",
+        "女大学生眼皮变沉",
+        "女大学生笔停住",
+        "女大学生身体轻晃"
+      ],
+      "forbidden_events": [],
+      "exact_dialogue": []
+    },
+    {
+      "shot_id": "S02",
+      "start_time": 4.0,
+      "end_time": 6.0,
+      "required_events": [
+        "女大学生头向下一点",
+        "女大学生额头快要碰到手臂",
+        "画面失焦",
+        "笔轻微滚动",
+        "女大学生身后阴影像被风吹开拉长"
+      ],
+      "forbidden_events": [
+        "女大学生额头碰到手臂"
+      ],
+      "exact_dialogue": []
+    },
+    {
+      "shot_id": "S03",
+      "start_time": 6.0,
+      "end_time": 9.0,
+      "required_events": [
+        "女大学生缓慢抬头",
+        "女大学生眼神改变",
+        "女大学生头发被风吹起",
+        "浅色上衣变成深色简洁战斗服"
+      ],
+      "forbidden_events": [
+        "出现夸张光效",
+        "出现爆炸"
+      ],
+      "exact_dialogue": []
+    },
+    {
+      "shot_id": "S04",
+      "start_time": 9.0,
+      "end_time": 12.0,
+      "required_events": [
+        "镜头推进到女大学生眼睛",
+        "书页自己翻动一页",
+        "窗帘无风自动向内掀起",
+        "墙面影子短暂变成刀轮廓",
+        "女大学生手指按住桌面",
+        "桌面上水滴逆向悬浮"
+      ],
+      "forbidden_events": [
+        "刀轮廓出现超过半秒"
+      ],
+      "exact_dialogue": []
+    },
+    {
+      "shot_id": "S05",
+      "start_time": 12.0,
+      "end_time": 14.0,
+      "required_events": [
+        "女大学生缓慢抬眼看向镜头",
+        "教室灯光全部闪灭",
+        "画面切黑"
+      ],
+      "forbidden_events": [
+        "女大学生出现恐惧",
+        "女大学生出现惊讶"
+      ],
+      "exact_dialogue": []
+    }
+  ],
+  "global_forbidden_events": [
+    "磨皮",
+    "塑料皮肤",
+    "美颜",
+    "明显煽情音乐",
+    "坠地声",
+    "强光爆炸特效",
+    "动漫感",
+    "土味短剧风格"
+  ]
+}

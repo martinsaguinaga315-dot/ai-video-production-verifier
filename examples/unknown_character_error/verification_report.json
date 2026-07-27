@@ -1,0 +1,17 @@
+{
+  "passed": false,
+  "score": 90,
+  "errors": 1,
+  "warnings": 0,
+  "issues": [
+    {
+      "rule_id": "UNKNOWN_CHARACTER",
+      "severity": "error",
+      "title": "出现事实层未定义人物",
+      "message": "导演输出擅自增加人物“回归测试新增人物”（出现位置：S01）。",
+      "path": "shots.S01.characters[1]",
+      "evidence": "shots.S01.characters[1]",
+      "suggestion": "删除该人物；若剧本确实需要此人物，先在facts.characters中正式定义，再重新生成导演方案。"
+    }
+  ]
+}

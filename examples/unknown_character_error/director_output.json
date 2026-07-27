@@ -1,0 +1,253 @@
+{
+  "project": {
+    "title": "《下课前一秒》",
+    "total_duration": 14.0,
+    "aspect_ratio": "9:16",
+    "format": "短片",
+    "visual_style": "真实校园日常切入冷感超现实，电影感，克制，低饱和，浅景深，真实皮肤纹理",
+    "sound_principle": "环境声自然过渡，关键处抽空或低频轰鸣，结尾刀鸣戛然而止"
+  },
+  "characters": [
+    {
+      "character_id": "女大学生",
+      "fixed_costume": "浅色上衣，深色简洁战斗服",
+      "fixed_props": [
+        "笔",
+        "书本",
+        "笔记本",
+        "水杯"
+      ],
+      "full_text": "22岁东亚女大学生，普通学生外表，眼神从困倦到冷静压迫，变身时服装变化但无夸张特效，表演克制，不浮夸"
+    }
+  ],
+  "locations": [
+    {
+      "location_id": "main_location",
+      "name": "大学教室",
+      "appearance_and_material": "上午阳光斜照，窗户，桌椅，靠窗位置，空气中有细微灰尘",
+      "lighting": "上午自然光，温暖，后变冷",
+      "cross_shot_consistency": "同一教室，靠窗位置，光线逐渐变冷"
+    }
+  ],
+  "props": [
+    {
+      "prop_id": "笔",
+      "name": "笔",
+      "owner": "女大学生",
+      "appearance_and_material": "普通圆珠笔或中性笔",
+      "cross_shot_consistency": "同一支笔，S01停住，S02轻微滚动",
+      "important_note": "无"
+    },
+    {
+      "prop_id": "书本",
+      "name": "书本",
+      "owner": "女大学生",
+      "appearance_and_material": "普通课本或笔记本",
+      "cross_shot_consistency": "同一本书，S04书页自己翻动一页",
+      "important_note": "无"
+    },
+    {
+      "prop_id": "笔记本",
+      "name": "笔记本",
+      "owner": "女大学生",
+      "appearance_and_material": "普通笔记本",
+      "cross_shot_consistency": "始终在桌上",
+      "important_note": "无"
+    },
+    {
+      "prop_id": "水杯",
+      "name": "水杯",
+      "owner": "女大学生",
+      "appearance_and_material": "普通水杯",
+      "cross_shot_consistency": "始终在桌上",
+      "important_note": "无"
+    }
+  ],
+  "shots": [
+    {
+      "shot_id": "S01",
+      "start_time": 0.0,
+      "end_time": 4.0,
+      "final_duration": 4.0,
+      "characters": [
+        "女大学生",
+        "回归测试新增人物"
+      ],
+      "opening_state": "女大学生坐在靠窗位置，浅色上衣，桌上有书本、笔记本、水杯，手拿笔，低头看书",
+      "action_path": "女大学生低头看书，眼皮变沉，笔停住，身体因困意轻微晃了一下\n\n固定事实事件：\n- 女大学生低头看书\n- 女大学生眼皮变沉\n- 女大学生笔停住\n- 女大学生身体轻晃\n\n一名回归测试新增人物进入画面并停在人物旁边。",
+      "performance": "自然困倦，动作缓慢，真实感",
+      "dialogue": [],
+      "sound": [
+        "远处老师模糊讲课声",
+        "窗外风声",
+        "纸页轻响"
+      ],
+      "ending_state": "女大学生身体轻晃，笔停住，眼皮沉重",
+      "first_frame_prompt": "女大学生坐在教室靠窗位置，浅色上衣，低头看书，阳光斜照，空气中有灰尘",
+      "video_prompt": "女大学生低头看书，眼皮逐渐变沉，笔停住，身体轻微晃动，环境安静\n\n一名回归测试新增人物进入画面并停在人物旁边。",
+      "negative_constraints": [
+        "无"
+      ],
+      "generation_segments": [
+        {
+          "name": "S01",
+          "recommended_generation_duration": 4.0,
+          "first_frame_prompt": "女大学生坐在教室靠窗位置，浅色上衣，低头看书，阳光斜照，空气中有灰尘",
+          "video_prompt": "女大学生低头看书，眼皮逐渐变沉，笔停住，身体轻微晃动，环境安静 一名回归测试新增人物进入画面并停在人物旁边。",
+          "negative_constraints": [
+            "无"
+          ]
+        }
+      ]
+    },
+    {
+      "shot_id": "S02",
+      "start_time": 4.0,
+      "end_time": 6.0,
+      "final_duration": 2.0,
+      "characters": [
+        "女大学生"
+      ],
+      "opening_state": "女大学生身体轻晃，笔停住，眼皮沉重",
+      "action_path": "女大学生头向下一点，额头快要碰到手臂但未碰到，画面短暂失焦，笔轻微滚动，身后阴影像被风吹开拉长\n\n固定事实事件：\n- 女大学生头向下一点\n- 女大学生额头快要碰到手臂\n- 画面失焦\n- 笔轻微滚动\n- 女大学生身后阴影像被风吹开拉长",
+      "performance": "瞬间困倦失神，动作自然",
+      "dialogue": [],
+      "sound": [
+        "所有环境声瞬间消失",
+        "一声很低的心跳"
+      ],
+      "ending_state": "女大学生额头快要碰到手臂，画面失焦，阴影拉长",
+      "first_frame_prompt": "女大学生头向下一点，额头快要碰到手臂，画面轻微失焦，笔在桌上，身后阴影拉长",
+      "video_prompt": "女大学生头向下一点，额头接近手臂但未接触，画面短暂失焦，笔轻微滚动，身后阴影拉长，环境声消失，心跳声",
+      "negative_constraints": [
+        "女大学生额头碰到手臂",
+        "禁止女大学生额头碰到手臂"
+      ],
+      "generation_segments": [
+        {
+          "name": "S02",
+          "recommended_generation_duration": 2.0,
+          "first_frame_prompt": "女大学生头向下一点，额头快要碰到手臂，画面轻微失焦，笔在桌上，身后阴影拉长",
+          "video_prompt": "女大学生头向下一点，额头接近手臂但未接触，画面短暂失焦，笔轻微滚动，身后阴影拉长，环境声消失，心跳声",
+          "negative_constraints": [
+            "女大学生额头碰到手臂",
+            "禁止女大学生额头碰到手臂"
+          ]
+        }
+      ]
+    },
+    {
+      "shot_id": "S03",
+      "start_time": 6.0,
+      "end_time": 9.0,
+      "final_duration": 3.0,
+      "characters": [
+        "女大学生"
+      ],
+      "opening_state": "女大学生额头快要碰到手臂，画面失焦",
+      "action_path": "女大学生缓慢抬头，眼神改变（从困倦到冷静），头发被无形的风吹起，浅色上衣变成深色简洁战斗服（无夸张光效或爆炸）\n\n固定事实事件：\n- 女大学生缓慢抬头\n- 女大学生眼神改变\n- 女大学生头发被风吹起\n- 浅色上衣变成深色简洁战斗服",
+      "performance": "缓慢抬头，眼神变化自然，服装变化流畅",
+      "dialogue": [],
+      "sound": [
+        "低频轰鸣慢慢出现"
+      ],
+      "ending_state": "女大学生身穿深色简洁战斗服，头发微动，眼神冷静，光线变冷",
+      "first_frame_prompt": "女大学生缓慢抬头，眼神冷静，头发被风吹起，浅色上衣正在变成深色简洁战斗服，光线变冷",
+      "video_prompt": "女大学生缓慢抬头，眼神从困倦变为冷静，头发被风吹起，浅色上衣逐渐变成深色简洁战斗服，光线变冷，低频轰鸣",
+      "negative_constraints": [
+        "出现夸张光效",
+        "出现爆炸",
+        "禁止出现夸张光效",
+        "禁止出现爆炸"
+      ],
+      "generation_segments": [
+        {
+          "name": "S03",
+          "recommended_generation_duration": 3.0,
+          "first_frame_prompt": "女大学生缓慢抬头，眼神冷静，头发被风吹起，浅色上衣正在变成深色简洁战斗服，光线变冷",
+          "video_prompt": "女大学生缓慢抬头，眼神从困倦变为冷静，头发被风吹起，浅色上衣逐渐变成深色简洁战斗服，光线变冷，低频轰鸣",
+          "negative_constraints": [
+            "出现夸张光效",
+            "出现爆炸",
+            "禁止出现夸张光效",
+            "禁止出现爆炸"
+          ]
+        }
+      ]
+    },
+    {
+      "shot_id": "S04",
+      "start_time": 9.0,
+      "end_time": 12.0,
+      "final_duration": 3.0,
+      "characters": [
+        "女大学生"
+      ],
+      "opening_state": "女大学生身穿深色简洁战斗服，眼神冷静，头发微动",
+      "action_path": "镜头慢慢推进到女大学生眼睛，书页自己翻动一页，窗帘无风自动向内掀起，墙面影子短暂变成刀轮廓（半秒后消失），女大学生手指按住桌面，桌面上水滴逆向悬浮\n\n固定事实事件：\n- 镜头推进到女大学生眼睛\n- 书页自己翻动一页\n- 窗帘无风自动向内掀起\n- 墙面影子短暂变成刀轮廓\n- 女大学生手指按住桌面\n- 桌面上水滴逆向悬浮",
+      "performance": "平静，眼神专注，动作轻微",
+      "dialogue": [],
+      "sound": [
+        "低频轰鸣持续"
+      ],
+      "ending_state": "女大学生手指按住桌面，水滴逆向悬浮，墙面影子刀轮廓消失",
+      "first_frame_prompt": "女大学生身穿深色简洁战斗服，眼神冷静，镜头推进到眼睛，书页翻动，窗帘掀起，墙面影子有刀轮廓，手指按桌面，水滴悬浮",
+      "video_prompt": "镜头慢慢推进到女大学生眼睛，书页自己翻动一页，窗帘无风自动向内掀起，墙面影子短暂变成刀轮廓（半秒后消失），女大学生手指按住桌面，桌面上水滴逆向悬浮",
+      "negative_constraints": [
+        "刀轮廓出现超过半秒",
+        "禁止刀轮廓出现超过半秒"
+      ],
+      "generation_segments": [
+        {
+          "name": "S04",
+          "recommended_generation_duration": 3.0,
+          "first_frame_prompt": "女大学生身穿深色简洁战斗服，眼神冷静，镜头推进到眼睛，书页翻动，窗帘掀起，墙面影子有刀轮廓，手指按桌面，水滴悬浮",
+          "video_prompt": "镜头慢慢推进到女大学生眼睛，书页自己翻动一页，窗帘无风自动向内掀起，墙面影子短暂变成刀轮廓（半秒后消失），女大学生手指按住桌面，桌面上水滴逆向悬浮",
+          "negative_constraints": [
+            "刀轮廓出现超过半秒",
+            "禁止刀轮廓出现超过半秒"
+          ]
+        }
+      ]
+    },
+    {
+      "shot_id": "S05",
+      "start_time": 12.0,
+      "end_time": 14.0,
+      "final_duration": 2.0,
+      "characters": [
+        "女大学生"
+      ],
+      "opening_state": "女大学生手指按住桌面，水滴悬浮，眼神冷静",
+      "action_path": "女大学生缓慢抬眼看向镜头，教室灯光全部闪灭，画面切黑\n\n固定事实事件：\n- 女大学生缓慢抬眼看向镜头\n- 教室灯光全部闪灭\n- 画面切黑",
+      "performance": "眼神冷静，无恐惧无惊讶，缓慢抬眼",
+      "dialogue": [],
+      "sound": [
+        "一声极轻的刀鸣，随后戛然而止"
+      ],
+      "ending_state": "画面全黑",
+      "first_frame_prompt": "女大学生缓慢抬眼看向镜头，眼神冷静，教室灯光开始闪灭",
+      "video_prompt": "女大学生缓慢抬眼看向镜头，教室灯光全部闪灭，画面切黑，刀鸣声",
+      "negative_constraints": [
+        "女大学生出现恐惧",
+        "女大学生出现惊讶",
+        "禁止女大学生出现恐惧",
+        "禁止女大学生出现惊讶"
+      ],
+      "generation_segments": [
+        {
+          "name": "S05",
+          "recommended_generation_duration": 2.0,
+          "first_frame_prompt": "女大学生缓慢抬眼看向镜头，眼神冷静，教室灯光开始闪灭",
+          "video_prompt": "女大学生缓慢抬眼看向镜头，教室灯光全部闪灭，画面切黑，刀鸣声",
+          "negative_constraints": [
+            "女大学生出现恐惧",
+            "女大学生出现惊讶",
+            "禁止女大学生出现恐惧",
+            "禁止女大学生出现惊讶"
+          ]
+        }
+      ]
+    }
+  ]
+}

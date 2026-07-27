@@ -1,0 +1,40 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compile Python files
+        run: python -m py_compile verify.py models.py rules.py llm_audit.py
+
+      - name: Run clean example
+        run: |
+          python verify.py \
+            examples/clean/facts.json \
+            examples/clean/director_output.json
+
+      - name: Run expected error example
+        run: |
+          set +e
+          python verify.py \
+            examples/unknown_character_error/facts.json \
+            examples/unknown_character_error/director_output.json
+          code=$?
+          test "$code" -eq 1
