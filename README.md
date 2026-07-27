@@ -51,7 +51,7 @@ The semantic layer is experimental. The deterministic layer is the primary stabl
 ## Installation
 
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/martinsaguinaga315-dot/ai-video-production-verifier.git
 cd ai-video-production-verifier
 python -m venv .venv
 ```
