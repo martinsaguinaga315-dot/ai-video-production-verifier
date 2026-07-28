@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import json
 
-from models import DirectorOutput, ProjectFacts
+from creator_import.compact_director_models import CompactDirectorDraft
+from models import ProjectFacts
 
 
 FACTS_SYSTEM_PROMPT = """你是影视项目事实提取器，不是导演。只提取用户文本明确支持的事实，不得增加人物、道具、台词或剧情，不得把氛围词、'有人'、'远处学生'等模糊描述当作固定人物。精确台词保持原文。时间无法确定时保持保守并返回JSON。只输出JSON。"""
 
-DIRECTOR_SYSTEM_PROMPT = """你是导演方案结构化器，不是编剧。忠实把用户提供的导演方案转为JSON；facts是不可随意改变的约束。不得新增人物、道具、台词、镜头或剧情。若用户原文和facts冲突，保留原文冲突供核验器报告，不要偷偷修正。缺少纯描述字段时只作最小、保守补全。
+DIRECTOR_SYSTEM_PROMPT = """你是导演方案结构化器，不是编剧。只返回精简导演草稿JSON，忠实提取用户导演原文；不得新增人物、道具、台词、镜头或剧情，冲突必须保留给核验器。
 
-返回JSON包装对象：{"director_output": {...}, "required_event_support": [...] }。
-required_event_support中的每项包含shot_id、required_event、supported、source_quote。仅当导演原文存在能直接支持该事件的真实连续source_quote时标记supported=true；source_quote必须逐字来自导演原文，不能引用facts，不能伪造。不要因为facts存在就把事件补进导演方案。每个镜头必须返回shot_id、start_time、end_time、final_duration、opening_state、action_path、ending_state、first_frame_prompt、video_prompt、negative_constraints和generation_segments。first_frame_prompt只能忠实概括opening_state，video_prompt只能忠实结构化action_path，不得扩写用户没有提供的剧情。只输出JSON。"""
+不得返回start_time、end_time、final_duration、first_frame_prompt、video_prompt、generation_segments或完整facts。每个shot只保留shot_id、人物、开场状态、动作、表演、台词、声音、结尾状态、负面约束和本镜头的required_event_support。引文必须是导演原文真实连续片段。不得输出Markdown或解释文字。"""
 
 
 def facts_user_prompt(text: str) -> str:
@@ -20,16 +20,22 @@ def facts_user_prompt(text: str) -> str:
     )
 
 
-def director_user_prompt(text: str, facts: ProjectFacts) -> str:
+def director_user_prompt(text: str, facts: ProjectFacts, fact_shots=None, *, batch_index: int = 1, batch_total: int = 1) -> str:
+    shots = fact_shots if fact_shots is not None else facts.shots
     return json.dumps(
         {
-            "task": "解析DirectorOutput",
-            "facts": facts.model_dump(mode="json"),
-            "schema": DirectorOutput.model_json_schema(),
+            "task": "解析精简导演草稿",
+            "batch": f"{batch_index}/{batch_total}",
+            "facts_summary": {"title": facts.title, "total_duration": facts.total_duration, "shots": [shot.model_dump(mode="json") for shot in shots]},
+            "schema": CompactDirectorDraft.model_json_schema(),
             "source_text": text,
         },
         ensure_ascii=False,
     )
+
+
+def compact_retry_prompt(text: str, facts: ProjectFacts, fact_shots, problems: list[str], batch_index: int, batch_total: int) -> str:
+    return json.dumps({"task": "重新返回合法精简导演草稿JSON", "batch": f"{batch_index}/{batch_total}", "facts_summary": {"title": facts.title, "shots": [shot.model_dump(mode="json") for shot in fact_shots]}, "schema": CompactDirectorDraft.model_json_schema(), "previous_error": problems[:6], "source_text": text}, ensure_ascii=False)
 
 
 def repair_user_prompt(invalid_response: str, problems: list[str]) -> str:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import queue
 import threading
+import inspect
 from typing import Callable
 
 from models import DirectorOutput, ProjectFacts, VerificationReport
@@ -68,7 +69,20 @@ class AnalysisController:
     def _run_director(self, director_text: str, facts: ProjectFacts, client) -> None:
         try:
             self.events.put(("status", "正在解析导演方案"))
-            output = self._director_parser(director_text, facts, client)
+            parameters = inspect.signature(self._director_parser).parameters.values()
+            accepts_callback = any(
+                parameter.name == "status_callback" or parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in parameters
+            )
+            if accepts_callback:
+                output = self._director_parser(
+                    director_text,
+                    facts,
+                    client,
+                    status_callback=lambda value: self.events.put(("status", value)),
+                )
+            else:
+                output = self._director_parser(director_text, facts, client)
             self.events.put(("director_ready", output))
         except Exception as exc:
             self.events.put(("error", exc))
