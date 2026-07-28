@@ -73,6 +73,79 @@ def _append_supported_events(
     return DirectorOutput.model_validate(data)
 
 
+def _narrative_from_existing_fields(shot: dict[str, Any]) -> str:
+    action = str(shot.get("action_path", "")).strip()
+    if action:
+        return action
+    parts = [
+        str(shot.get("opening_state", "")).strip(),
+        str(shot.get("performance", "")).strip(),
+        str(shot.get("ending_state", "")).strip(),
+    ]
+    parts.extend(
+        f"{item.get('speaker', '')}：{item.get('text', '')}".strip("：")
+        for item in shot.get("dialogue", [])
+        if isinstance(item, dict) and (item.get("speaker") or item.get("text"))
+    )
+    return "\n".join(part for part in parts if part)
+
+
+def normalize_shot_generation_fields(shot: dict[str, Any]) -> dict[str, Any]:
+    """Derive production fields only from existing fields in one sparse shot."""
+    normalized = dict(shot)
+    shot_id = str(normalized.get("shot_id", "")).strip()
+    if not shot_id:
+        raise ExtractionValidationError("自动结构化失败。", ["镜头无法生成分段名称：shot_id为空。"])
+    try:
+        duration = float(normalized.get("final_duration", 0) or 0)
+    except (TypeError, ValueError):
+        duration = 0
+    if duration <= 0:
+        try:
+            start, end = float(normalized.get("start_time")), float(normalized.get("end_time"))
+        except (TypeError, ValueError):
+            start, end = 0, 0
+        if end <= start:
+            raise ExtractionValidationError(
+                "自动结构化失败。",
+                [f"{shot_id}无法确定有效时长：final_duration无效，且end_time不大于start_time。"],
+            )
+        duration = end - start
+    normalized["final_duration"] = duration
+    first_frame = str(normalized.get("first_frame_prompt", "")).strip()
+    if not first_frame:
+        first_frame = str(normalized.get("opening_state", "")).strip()
+    if not first_frame:
+        raise ExtractionValidationError(
+            "自动结构化失败。",
+            [f"{shot_id}无法生成首帧提示词：first_frame_prompt和opening_state均为空。"],
+        )
+    normalized["first_frame_prompt"] = first_frame
+    video_prompt = str(normalized.get("video_prompt", "")).strip()
+    if not video_prompt:
+        video_prompt = _narrative_from_existing_fields(normalized)
+    if not video_prompt:
+        raise ExtractionValidationError(
+            "自动结构化失败。",
+            [f"{shot_id}无法生成视频提示词：video_prompt、action_path、opening_state和ending_state均为空。"],
+        )
+    normalized["video_prompt"] = video_prompt
+    return normalized
+
+
+def _normalize_director_payload(candidate: Any) -> Any:
+    if not isinstance(candidate, dict):
+        return candidate
+    normalized = dict(candidate)
+    shots = normalized.get("shots")
+    if isinstance(shots, list):
+        normalized["shots"] = [
+            normalize_shot_generation_fields(shot) if isinstance(shot, dict) else shot
+            for shot in shots
+        ]
+    return normalized
+
+
 def _complete_structure(output: DirectorOutput, facts: ProjectFacts) -> DirectorOutput:
     data = output.model_dump(mode="json")
     project = data.setdefault("project", {})
@@ -85,10 +158,7 @@ def _complete_structure(output: DirectorOutput, facts: ProjectFacts) -> Director
             continue
         required = (shot.get("shot_id"), shot.get("final_duration"), shot.get("first_frame_prompt"), shot.get("video_prompt"))
         if not all(required) or float(shot["final_duration"]) <= 0:
-            raise ExtractionValidationError(
-                "自动结构化失败。",
-                [f"{shot.get('shot_id', '镜头')}缺少生成分段所需的名称、时长、首帧或视频提示词。"],
-            )
+            raise ExtractionValidationError("自动结构化失败。", [f"{shot.get('shot_id', '镜头')}无法生成合法分段。"])
         shot["generation_segments"] = [{
             "name": shot["shot_id"],
             "recommended_generation_duration": shot["final_duration"],
@@ -106,7 +176,7 @@ def _parse_response(raw: str, facts: ProjectFacts, source_text: str, client) -> 
         try:
             data = load_clean_json(current)
             candidate = data.get("director_output", data) if isinstance(data, dict) else data
-            output = DirectorOutput.model_validate(candidate)
+            output = DirectorOutput.model_validate(_normalize_director_payload(candidate))
             output = _append_supported_events(output, facts, _support_items(data), source_text)
             return _complete_structure(output, facts)
         except (JsonStructureError, ValidationError, ExtractionValidationError) as exc:

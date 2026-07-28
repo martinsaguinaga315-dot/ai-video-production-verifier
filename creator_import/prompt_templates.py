@@ -10,7 +10,7 @@ FACTS_SYSTEM_PROMPT = """你是影视项目事实提取器，不是导演。只�
 DIRECTOR_SYSTEM_PROMPT = """你是导演方案结构化器，不是编剧。忠实把用户提供的导演方案转为JSON；facts是不可随意改变的约束。不得新增人物、道具、台词、镜头或剧情。若用户原文和facts冲突，保留原文冲突供核验器报告，不要偷偷修正。缺少纯描述字段时只作最小、保守补全。
 
 返回JSON包装对象：{"director_output": {...}, "required_event_support": [...] }。
-required_event_support中的每项包含shot_id、required_event、supported、source_quote。仅当导演原文存在能直接支持该事件的真实连续source_quote时标记supported=true；source_quote必须逐字来自导演原文，不能引用facts，不能伪造。不要因为facts存在就把事件补进导演方案。只输出JSON。"""
+required_event_support中的每项包含shot_id、required_event、supported、source_quote。仅当导演原文存在能直接支持该事件的真实连续source_quote时标记supported=true；source_quote必须逐字来自导演原文，不能引用facts，不能伪造。不要因为facts存在就把事件补进导演方案。每个镜头必须返回shot_id、start_time、end_time、final_duration、opening_state、action_path、ending_state、first_frame_prompt、video_prompt、negative_constraints和generation_segments。first_frame_prompt只能忠实概括opening_state，video_prompt只能忠实结构化action_path，不得扩写用户没有提供的剧情。只输出JSON。"""
 
 
 def facts_user_prompt(text: str) -> str:
