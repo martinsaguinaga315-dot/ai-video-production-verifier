@@ -1,3 +1,4 @@
 -r requirements.txt
 customtkinter==5.2.2
 keyring==25.7.0
+python-docx==1.2.0
