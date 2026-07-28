@@ -180,7 +180,29 @@ def run_verification(
     _notify(status_callback, "正在检查结构")
     facts, director_output = _validate_inputs(facts_data, output_data)
 
-    _notify(status_callback, "正在执行硬规则")
+    return run_verification_models(
+        facts,
+        director_output,
+        semantic=semantic,
+        api_key=api_key,
+        status_callback=status_callback,
+    )
+
+
+def run_verification_models(
+    facts: ProjectFacts,
+    director_output: DirectorOutput,
+    *,
+    semantic: bool = False,
+    api_key: str | None = None,
+    status_callback: StatusCallback | None = None,
+) -> VerificationReport:
+    """Verify already-confirmed in-memory models for creator mode.
+
+    This is the same stable pipeline used by ``run_verification`` after file
+    loading; it avoids writing intermediate creator drafts to disk.
+    """
+    _notify(status_callback, "正在执行本地硬规则")
     try:
         hard_report = verify_hard_rules(facts, director_output)
     except Exception as exc:
