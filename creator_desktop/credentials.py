@@ -30,6 +30,11 @@ def load_api_key(backend: KeyringBackend | None = None) -> str | None:
         raise CredentialError("无法读取已保存的API Key。") from exc
 
 
+def has_saved_api_key(backend: KeyringBackend | None = None) -> bool:
+    """Return credential presence only; do not expose its value to UI state."""
+    return bool(load_api_key(backend))
+
+
 def save_api_key(api_key: str, backend: KeyringBackend | None = None) -> None:
     cleaned = api_key.strip()
     if not cleaned:

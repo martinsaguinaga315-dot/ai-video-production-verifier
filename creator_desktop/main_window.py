@@ -10,8 +10,9 @@ from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
 from creator_desktop.api_key_dialog import ApiKeyDialog
+from creator_desktop.api_key_state import main_api_status, semantic_mode_requires_configuration
 from creator_desktop.app_paths import log_dir
-from creator_desktop.credentials import CredentialError, load_api_key
+from creator_desktop.credentials import CredentialError, has_saved_api_key, load_api_key
 from creator_desktop.ui_errors import friendly_error
 from creator_desktop.verification_controller import VerificationController
 from models import VerificationReport
@@ -44,8 +45,10 @@ class MainWindow(ctk.CTk):
         self.semantic_mode = ctk.StringVar(value="local")
         self.status = ctk.StringVar(value="请选择facts.json和director_output.json。")
         self.summary = ctk.StringVar(value="尚未执行核验")
+        self.api_status = ctk.StringVar(value="API：未配置")
         self.protocol("WM_DELETE_WINDOW", self._close)
         self._build()
+        self._refresh_api_status()
         self.after(100, self._poll_events)
         self.after(150, self._offer_first_run_settings)
 
@@ -72,6 +75,7 @@ class MainWindow(ctk.CTk):
         self.start_button = ctk.CTkButton(controls, text="开始核验", command=self._start)
         self.start_button.pack(side="right", padx=12)
         ctk.CTkButton(controls, text="API设置", command=self._open_api_settings).pack(side="right", padx=6)
+        ctk.CTkLabel(controls, textvariable=self.api_status).pack(side="right", padx=(4, 10))
         ctk.CTkButton(controls, text="加载错误示例", command=lambda: self._load_example("unknown_character_error")).pack(side="right", padx=6)
         ctk.CTkButton(controls, text="加载正常示例", command=lambda: self._load_example("clean")).pack(side="right", padx=6)
 
@@ -109,15 +113,22 @@ class MainWindow(ctk.CTk):
         self.status.set(f"已加载{name}示例。")
 
     def _open_api_settings(self) -> None:
-        ApiKeyDialog(self)
+        ApiKeyDialog(self, on_changed=self._refresh_api_status)
+
+    def _refresh_api_status(self) -> None:
+        try:
+            configured = has_saved_api_key()
+        except CredentialError:
+            configured = False
+        self.api_status.set(main_api_status(configured))
 
     def _offer_first_run_settings(self) -> None:
         try:
-            missing = not load_api_key()
+            missing = not has_saved_api_key()
         except CredentialError:
             missing = False
         if missing:
-            ApiKeyDialog(self)
+            self._open_api_settings()
 
     def _start(self) -> None:
         facts, output = self.facts_path.get().strip(), self.output_path.get().strip()
@@ -135,8 +146,8 @@ class MainWindow(ctk.CTk):
             except CredentialError:
                 messagebox.showerror("API Key", "无法读取已保存的API Key。", parent=self)
                 return
-            if not api_key:
-                messagebox.showwarning("缺少API Key", "请先在API设置中保存DeepSeek API Key。", parent=self)
+            if semantic_mode_requires_configuration(bool(api_key)):
+                self._handle_missing_api_key()
                 return
         if not self._controller.start(facts, output, semantic=semantic, api_key=api_key):
             return
@@ -144,6 +155,18 @@ class MainWindow(ctk.CTk):
         self.export_button.configure(state="disabled")
         self.status.set("正在读取文件")
         self._clear_results()
+
+    def _handle_missing_api_key(self) -> None:
+        choice = messagebox.askyesnocancel(
+            "尚未配置DeepSeek API Key",
+            "尚未配置DeepSeek API Key。\n请先打开“API设置”完成配置，或切换到“仅本地硬规则”。",
+            parent=self,
+        )
+        if choice is True:
+            self._open_api_settings()
+        elif choice is False:
+            self.semantic_mode.set("local")
+            self.status.set("已切换到仅本地硬规则模式。")
 
     def _poll_events(self) -> None:
         try:
