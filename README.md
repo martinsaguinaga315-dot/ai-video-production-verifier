@@ -30,15 +30,13 @@ Optional DeepSeek semantic auditing adds:
 
 ## Current status
 
-Version: `0.1.0`
+Version: `0.2.0-dev`
 
-Current verified baseline:
+Current checked baseline:
 
-- 3 regression case groups
-- 51 tests
-- 51 passed
-- 0 expectation mismatches
-- 0 runtime errors
+- 2 versioned CLI example cases
+- 14 non-network pytest checks for the shared service, CLI, credentials, and controller
+- no live semantic API calls in automated tests
 
 The semantic layer is experimental. The deterministic layer is the primary stable interface.
 
@@ -156,6 +154,21 @@ python verify.py \
 ```
 
 Never commit `.env`.
+
+## Windows desktop app (JSON professional mode)
+
+The source desktop app lets you select existing `facts.json` and
+`director_output.json` files, run local hard-rule verification or optional
+DeepSeek semantic auditing, inspect issues, and export the JSON report.
+
+```powershell
+pip install -r requirements-desktop.txt
+python desktop_app.py
+```
+
+The desktop app stores the DeepSeek API key in Windows Credential Manager; it
+does not put the key in a project JSON file, report, or ordinary settings file.
+Natural-language conversion and packaging are not part of this release stage.
 
 ## CLI
 
