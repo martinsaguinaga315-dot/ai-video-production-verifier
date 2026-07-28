@@ -168,7 +168,27 @@ python desktop_app.py
 
 The desktop app stores the DeepSeek API key in Windows Credential Manager; it
 does not put the key in a project JSON file, report, or ordinary settings file.
-Natural-language conversion and packaging are not part of this release stage.
+Windows packaging is not part of this release stage.
+
+## Creator mode (source development build)
+
+The desktop app now opens in **普通创作者模式**. Configure your own DeepSeek
+API Key, then paste or import a script/project requirement and a director or
+shot-plan text (`.txt`, `.md`, `.docx`, or `.json`). Select **自动分析**,
+confirm the extracted locked facts, confirm the director-plan summary, and then
+start verification. Extracted facts and director drafts remain in memory until
+you explicitly export them.
+
+Automatic extraction is not guaranteed to be correct. Review people, props,
+dialogue, and timing carefully before confirming facts. Natural-language
+structuring and optional semantic auditing use your configured DeepSeek account
+and may consume its API quota. The application does not include an API Key or
+telemetry upload.
+
+**专业JSON模式** remains available for direct `facts.json` and
+`director_output.json` import. Its local hard-rule verification can run
+offline. This is still a source development build; a Windows installer will be
+provided in a later stage.
 
 ## CLI
 
