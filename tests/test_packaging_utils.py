@@ -36,3 +36,8 @@ def test_windows_build_reads_unicode_app_name_as_utf8() -> None:
     assert "$env:PYTHONIOENCODING = 'utf-8'" in script
     assert "$env:PYTHONUTF8 = '1'" in script
     assert "Application name metadata was empty." in script
+
+
+def test_frozen_build_verifies_pyinstaller_internal_resources() -> None:
+    script = Path("packaging/verify_build.ps1").read_text(encoding="utf-8")
+    assert '"$AppName\\_internal\\$required"' in script
