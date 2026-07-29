@@ -4,7 +4,7 @@ import json
 import zipfile
 from pathlib import Path
 
-from packaging.release_utils import scan_tree, scan_zip, sha256, write_manifest, write_sha256s
+from build_support.release_utils import scan_tree, scan_zip, sha256, write_manifest, write_sha256s
 
 
 def test_sha256_and_manifest_include_artifact_metadata(tmp_path: Path) -> None:
