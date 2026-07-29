@@ -29,3 +29,9 @@ def test_sensitive_scan_rejects_forbidden_build_paths_and_archives(tmp_path: Pat
     archive = tmp_path / "portable.zip"
     with zipfile.ZipFile(archive, "w") as output: output.writestr("app/.git/config", "x")
     assert scan_zip(archive)
+
+
+def test_windows_build_reads_unicode_app_name_as_utf8() -> None:
+    script = Path("packaging/build_windows.ps1").read_text(encoding="utf-8")
+    assert "$env:PYTHONIOENCODING = 'utf-8'" in script
+    assert "Application name metadata was empty." in script

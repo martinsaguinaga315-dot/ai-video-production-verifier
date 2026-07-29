@@ -15,8 +15,18 @@ $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
 if (-not $pyLauncher) { throw 'Python 3.11 is required, but the Windows py launcher is unavailable. Install Python 3.11, then rerun packaging/build_windows.ps1.' }
 $pythonExe = (& $pyLauncher.Source -3.11 -c "import sys; print(sys.executable)" 2>$null).Trim()
 if (-not $pythonExe) { throw 'Python 3.11 is required. Install Python 3.11, then rerun packaging/build_windows.ps1.' }
-$version = (& $pythonExe -c "from app_version import VERSION; print(VERSION)").Trim()
-$appName = (& $pythonExe -c "from app_version import APP_NAME; print(APP_NAME)").Trim()
+$previousPythonIoEncoding = $env:PYTHONIOENCODING
+try {
+    # The hosted Windows runner can default Python stdout to cp1252.  APP_NAME
+    # contains Chinese characters, so read build metadata through UTF-8.
+    $env:PYTHONIOENCODING = 'utf-8'
+    $version = (& $pythonExe -c "from app_version import VERSION; print(VERSION)").Trim()
+    $appName = (& $pythonExe -c "from app_version import APP_NAME; print(APP_NAME)").Trim()
+}
+finally {
+    $env:PYTHONIOENCODING = $previousPythonIoEncoding
+}
+if ([string]::IsNullOrWhiteSpace($appName)) { throw 'Application name metadata was empty.' }
 $venv = Join-Path $root '.build-venv'
 $buildDir, $distDir, $releaseDir = (Join-Path $root 'build'), (Join-Path $root 'dist'), (Join-Path $root 'release')
 foreach ($path in @($venv, $buildDir, $distDir, $releaseDir)) { if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force } }
