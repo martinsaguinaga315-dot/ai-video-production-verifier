@@ -1,0 +1,31 @@
+from __future__ import annotations
+
+import json
+import zipfile
+from pathlib import Path
+
+from packaging.release_utils import scan_tree, scan_zip, sha256, write_manifest, write_sha256s
+
+
+def test_sha256_and_manifest_include_artifact_metadata(tmp_path: Path) -> None:
+    artifact = tmp_path / "artifact.bin"; artifact.write_bytes(b"release")
+    checksums, manifest = tmp_path / "SHA256SUMS.txt", tmp_path / "manifest.json"
+    write_sha256s([artifact], checksums)
+    write_manifest(manifest, commit="abc", python_version="3.11", pyinstaller_version="6.12", test_result="75 passed", artifacts=[artifact], smoke_passed=True, scan_passed=True, installer_built=False, portable_built=True)
+    assert sha256(artifact) in checksums.read_text(encoding="utf-8")
+    assert json.loads(manifest.read_text(encoding="utf-8"))["artifacts"][0]["name"] == "artifact.bin"
+
+
+def test_sensitive_scan_passes_for_clean_tree_and_fails_for_mock_key(tmp_path: Path) -> None:
+    (tmp_path / "README.txt").write_text("safe release", encoding="utf-8")
+    assert scan_tree(tmp_path) == []
+    (tmp_path / "config.txt").write_text("DEEPSEEK_API_KEY=mock-secret-value", encoding="utf-8")
+    assert scan_tree(tmp_path)
+
+
+def test_sensitive_scan_rejects_forbidden_build_paths_and_archives(tmp_path: Path) -> None:
+    cache = tmp_path / "__pycache__"; cache.mkdir(); (cache / "x.pyc").write_bytes(b"x")
+    assert scan_tree(tmp_path)
+    archive = tmp_path / "portable.zip"
+    with zipfile.ZipFile(archive, "w") as output: output.writestr("app/.git/config", "x")
+    assert scan_zip(archive)
