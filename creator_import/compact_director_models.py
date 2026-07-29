@@ -23,6 +23,9 @@ class CompactCharacterDraft(BaseModel):
     model_config = ConfigDict(extra="allow")
     character_id: str
     fixed_appearance: str = ""
+    # Evidence is kept only while converting the compact draft.  It never
+    # becomes part of DirectorOutput or a verification report.
+    appearance_source_quote: str = ""
     initial_state: str = ""
     fixed_costume: str = ""
     fixed_props: list[str] = Field(default_factory=list)

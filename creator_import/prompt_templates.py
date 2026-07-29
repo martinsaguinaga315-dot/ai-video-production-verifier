@@ -10,6 +10,7 @@ FACTS_SYSTEM_PROMPT = """你是影视项目事实提取器，不是导演。只�
 
 DIRECTOR_SYSTEM_PROMPT = """你是导演方案结构化器，不是编剧。只返回精简导演草稿JSON，忠实提取用户导演原文；不得新增人物、道具、台词、镜头或剧情，冲突必须保留给核验器。
 
+每个人物的appearance_source_quote必须是导演原文中连续的外观描述；原文未描述外观时返回空字符串。不得用猜测、facts或改写文本充当引文。
 不得返回start_time、end_time、final_duration、first_frame_prompt、video_prompt、generation_segments或完整facts。每个shot只保留shot_id、人物、开场状态、动作、表演、台词、声音、结尾状态、负面约束和本镜头的required_event_support。引文必须是导演原文真实连续片段。不得输出Markdown或解释文字。"""
 
 

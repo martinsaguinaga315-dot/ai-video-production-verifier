@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from pydantic import ValidationError
@@ -39,6 +40,68 @@ def _support_items(data: Any) -> list[dict[str, Any]]:
     return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
 
 
+@dataclass(frozen=True)
+class AnchoredRequiredEvent:
+    shot_id: str
+    required_event: str
+    source_quote: str
+    source_start: int
+    source_end: int
+
+
+def _quote_positions(quote: str, source_text: str) -> list[tuple[int, int]]:
+    """Return every normalized occurrence, in source order."""
+    normalized_quote = _normalized_evidence(quote)
+    normalized_source_parts: list[str] = []
+    source_offsets: list[int] = []
+    for source_index, char in enumerate(source_text):
+        normalized_char = _normalized_evidence(char)
+        if normalized_char:
+            normalized_source_parts.append(normalized_char)
+            source_offsets.extend([source_index] * len(normalized_char))
+    normalized_source = "".join(normalized_source_parts)
+    if not normalized_quote:
+        return []
+    positions: list[tuple[int, int]] = []
+    start = 0
+    while True:
+        found = normalized_source.find(normalized_quote, start)
+        if found < 0:
+            return positions
+        positions.append((source_offsets[found], source_offsets[found + len(normalized_quote) - 1] + 1))
+        start = found + len(normalized_quote)
+
+
+def _anchored_supported_events(
+    facts: ProjectFacts,
+    supports: list[dict[str, Any]],
+    source_text: str,
+) -> list[AnchoredRequiredEvent]:
+    """Accept only evidenced fact events and retain their original order."""
+    expected = {shot.shot_id: shot for shot in facts.shots}
+    used_positions: dict[str, int] = {}
+    anchored: list[AnchoredRequiredEvent] = []
+    for support in supports:
+        shot_id = str(support.get("shot_id", ""))
+        event = str(support.get("required_event", ""))
+        quote = str(support.get("source_quote", ""))
+        normalized_quote = _normalized_evidence(quote)
+        if (
+            support.get("supported") is not True
+            or shot_id not in expected
+            or event not in expected[shot_id].required_events
+        ):
+            continue
+        positions = _quote_positions(quote, source_text)
+        occurrence_index = used_positions.get(normalized_quote, 0)
+        if not positions or occurrence_index >= len(positions):
+            continue
+        source_start, source_end = positions[occurrence_index]
+        used_positions[normalized_quote] = occurrence_index + 1
+        anchored.append(AnchoredRequiredEvent(shot_id, event, quote, source_start, source_end))
+    return anchored
+
+
 def _append_supported_events(
     output: DirectorOutput,
     facts: ProjectFacts,
@@ -47,38 +110,25 @@ def _append_supported_events(
 ) -> DirectorOutput:
     """Anchor exact facts only after local validation of model-supplied evidence."""
     data = output.model_dump(mode="json")
-    expected = {shot.shot_id: shot for shot in facts.shots}
     actual = {shot["shot_id"]: shot for shot in data["shots"]}
-    supported_by_shot: dict[str, set[str]] = {}
-    for support in supports:
-        shot_id = str(support.get("shot_id", ""))
-        event = str(support.get("required_event", ""))
-        quote = str(support.get("source_quote", ""))
-        if (
-            support.get("supported") is True
-            and shot_id in expected
-            and shot_id in actual
-            and event in expected[shot_id].required_events
-            and _quote_is_in_source(quote, source_text)
-        ):
-            supported_by_shot.setdefault(shot_id, set()).add(event)
+    by_shot: dict[str, list[AnchoredRequiredEvent]] = {}
+    for anchored in _anchored_supported_events(facts, supports, source_text):
+        if anchored.shot_id in actual:
+            by_shot.setdefault(anchored.shot_id, []).append(anchored)
 
-    for shot_id, expected_shot in expected.items():
+    for shot_id, anchored_events in by_shot.items():
         actual_shot = actual.get(shot_id)
         if not actual_shot:
             continue
-        narrative = "\n".join(
-            str(actual_shot.get(field, ""))
-            for field in ("opening_state", "action_path", "ending_state", "video_prompt")
-        )
+        action_path = str(actual_shot.get("action_path", "")).strip()
         additions = [
-            event
-            for event in expected_shot.required_events
-            if event in supported_by_shot.get(shot_id, set()) and event not in narrative
+            anchored.required_event
+            for anchored in sorted(anchored_events, key=lambda item: item.source_start)
+            if anchored.required_event not in action_path
         ]
         if additions:
-            suffix = "固定事实事件：\n" + "\n".join(f"- {event}" for event in additions)
-            actual_shot["action_path"] = (str(actual_shot.get("action_path", "")).strip() + "\n\n" + suffix).strip()
+            event_block = "固定事实事件：\n" + "\n".join(f"- {event}" for event in additions)
+            actual_shot["action_path"] = (event_block + "\n\n" + action_path).strip()
     return DirectorOutput.model_validate(data)
 
 
@@ -299,6 +349,55 @@ def _merge_compact_drafts(drafts: list[CompactDirectorDraft], facts: ProjectFact
     })
 
 
+def _join_fact_terms(terms: list[str]) -> str:
+    return "，".join(term.strip() for term in terms if term.strip())
+
+
+def _source_quote_supports_terms(source_quote: str, terms: list[str]) -> bool:
+    normalized_quote = _normalized_evidence(source_quote)
+    return bool(normalized_quote) and all(
+        _normalized_evidence(term) in normalized_quote
+        for term in terms
+        if _normalized_evidence(term)
+    )
+
+
+def _normalize_compact_characters(
+    draft: CompactDirectorDraft, facts: ProjectFacts, source_text: str,
+) -> list[dict[str, Any]]:
+    """Safely inherit locked character baselines without hiding source conflicts."""
+    locks = {lock.character_id: lock for lock in facts.characters}
+    characters: list[dict[str, Any]] = []
+    for compact_character in draft.characters:
+        character = compact_character.model_dump(mode="json", exclude={"appearance_source_quote"})
+        lock = locks.get(compact_character.character_id)
+        if not lock:
+            # Unknown characters remain in the output for the hard rules.
+            characters.append(character)
+            continue
+
+        appearance_quote = compact_character.appearance_source_quote.strip()
+        quote_is_valid = _quote_is_in_source(appearance_quote, source_text)
+        fixed_appearance = str(character.get("fixed_appearance", "")).strip()
+        if not appearance_quote:
+            # No original appearance claim: retain the reviewed facts baseline.
+            if not fixed_appearance:
+                character["fixed_appearance"] = _join_fact_terms(lock.fixed_appearance_terms)
+        elif quote_is_valid and _source_quote_supports_terms(appearance_quote, lock.fixed_appearance_terms):
+            # The source confirms the facts, so use one canonical representation.
+            character["fixed_appearance"] = _join_fact_terms(lock.fixed_appearance_terms)
+        elif quote_is_valid and not fixed_appearance:
+            # A real but non-supporting quote is a source conflict/variation. Keep
+            # it visible so the existing hard rules can report it rather than
+            # silently filling it with the facts baseline.
+            character["fixed_appearance"] = appearance_quote
+
+        if not str(character.get("initial_state", "")).strip():
+            character["initial_state"] = _join_fact_terms(lock.initial_state_terms)
+        characters.append(character)
+    return characters
+
+
 def build_director_output_from_compact_draft(
     draft: CompactDirectorDraft, facts: ProjectFacts, source_text: str,
 ) -> DirectorOutput:
@@ -322,7 +421,7 @@ def build_director_output_from_compact_draft(
         supports.extend({"shot_id": fact_shot.shot_id, **item.model_dump(mode="json")} for item in compact.required_event_support)
     output = DirectorOutput.model_validate({
         "project": {"title": facts.title, "total_duration": facts.total_duration},
-        "characters": [item.model_dump(mode="json") for item in draft.characters],
+        "characters": _normalize_compact_characters(draft, facts, source_text),
         "locations": draft.locations,
         "props": draft.props,
         "shots": output_shots,
