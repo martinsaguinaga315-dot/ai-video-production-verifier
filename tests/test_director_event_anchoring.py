@@ -82,12 +82,12 @@ def test_unsupported_or_forged_or_wrong_shot_events_are_not_injected() -> None:
     assert "抬头看向道路尽头" not in result.shots[0].action_path
 
 
-def test_existing_exact_event_is_not_duplicated_and_order_is_facts_order() -> None:
+def test_existing_exact_event_is_anchored_and_block_uses_source_order() -> None:
     facts, output = rain_facts(), DirectorOutput.model_validate(base_output())
     output.shots[0].action_path = "右手拿着白色信封"
     result = _append_supported_events(output, facts, supports(), SOURCE)
-    assert result.shots[0].action_path.count("右手拿着白色信封") == 1
-    additions = ["林舟站在雨夜公交站下", "低头看信封", "镜头结束时仍然拿着信封"]
+    assert result.shots[0].action_path.count("右手拿着白色信封") == 2
+    additions = ["林舟站在雨夜公交站下", "右手拿着白色信封", "低头看信封", "镜头结束时仍然拿着信封"]
     positions = [result.shots[0].action_path.index(event) for event in additions]
     assert positions == sorted(positions)
 

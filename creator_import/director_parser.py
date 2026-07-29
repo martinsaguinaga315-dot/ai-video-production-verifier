@@ -121,14 +121,26 @@ def _append_supported_events(
         if not actual_shot:
             continue
         action_path = str(actual_shot.get("action_path", "")).strip()
-        additions = [
-            anchored.required_event
-            for anchored in sorted(anchored_events, key=lambda item: item.source_start)
-            if anchored.required_event not in action_path
-        ]
-        if additions:
-            event_block = "固定事实事件：\n" + "\n".join(f"- {event}" for event in additions)
-            actual_shot["action_path"] = (event_block + "\n\n" + action_path).strip()
+        block_events: list[str] = []
+        seen_events: set[str] = set()
+        for anchored in sorted(anchored_events, key=lambda item: item.source_start):
+            if anchored.required_event in seen_events:
+                continue
+            seen_events.add(anchored.required_event)
+            block_events.append(anchored.required_event)
+        if block_events:
+            event_block = "固定事实事件（按导演原文顺序）：\n" + "\n".join(
+                f"- {event}" for event in block_events
+            )
+            actual_shot["action_path"] = (
+                event_block + "\n\n导演动作描述：\n" + action_path
+            ).strip()
+            # Compact construction initially mirrors action_path into
+            # video_prompt.  Keep that production field as the unambiguous,
+            # source-ordered event carrier so a repeated phrase in the free
+            # action text cannot create a false ordered subsequence.
+            if str(actual_shot.get("video_prompt", "")).strip() == action_path:
+                actual_shot["video_prompt"] = event_block
     return DirectorOutput.model_validate(data)
 
 

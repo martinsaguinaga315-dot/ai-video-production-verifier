@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from creator_import.compact_director_models import CompactDirectorDraft
 from creator_import.director_parser import _append_supported_events, build_director_output_from_compact_draft
+from llm_audit import _event_order_precheck
 from models import DirectorOutput, ProjectFacts
 from rules import verify
+from tests.test_director_event_anchoring import base_output, rain_facts
 
 
 def character_facts() -> ProjectFacts:
@@ -97,7 +99,7 @@ def test_event_block_is_front_loaded_and_sorted_by_source_position() -> None:
         supported("站在公交站", "站在公交站"),
     ], source)
     action_path = result.shots[0].action_path
-    assert action_path.startswith("固定事实事件：")
+    assert action_path.startswith("固定事实事件（按导演原文顺序）：")
     positions = [action_path.index(event) for event in event_facts().shots[0].required_events]
     assert positions == sorted(positions)
     assert action_path.index("自由动作描述") > positions[-1]
@@ -128,12 +130,57 @@ def test_repeated_quotes_consume_earliest_unused_source_occurrences() -> None:
     assert result.shots[0].action_path.count("事件乙") == 1
 
 
-def test_existing_exact_event_is_not_repeated_in_event_block() -> None:
+def test_existing_exact_event_is_still_anchored_and_free_action_is_preserved() -> None:
     source = "站在公交站，随后抬头。"
     result = _append_supported_events(empty_event_output("抬头后的自由描述"), event_facts(), [
         supported("站在公交站", "站在公交站"), supported("抬头", "抬头"),
     ], source)
-    assert result.shots[0].action_path.count("抬头") == 1
+    action_path = result.shots[0].action_path
+    assert "- 抬头" in action_path
+    assert action_path.count("抬头") == 2
+    assert action_path.endswith("导演动作描述：\n抬头后的自由描述")
+
+
+def test_event_block_deduplicates_only_its_own_events() -> None:
+    source = "站在公交站，然后再次站在公交站。"
+    result = _append_supported_events(empty_event_output("站在公交站的自由描述"), event_facts(), [
+        supported("站在公交站", "站在公交站"),
+        supported("站在公交站", "站在公交站"),
+    ], source)
+    event_block, free_action = result.shots[0].action_path.split("\n\n导演动作描述：\n", maxsplit=1)
+    assert event_block.count("站在公交站") == 1
+    assert free_action == "站在公交站的自由描述"
+
+
+def _rain_shot2_supports() -> list[dict[str, object]]:
+    return [
+        {"shot_id": "shot2", "required_event": "林舟继续站在同一公交站", "supported": True, "source_quote": "继续站在同一公交站"},
+        {"shot_id": "shot2", "required_event": "继续穿深蓝色夹克", "supported": True, "source_quote": "继续穿深蓝色夹克"},
+        {"shot_id": "shot2", "required_event": "右手仍拿着同一封白色信封", "supported": True, "source_quote": "右手仍拿着同一封白色信封"},
+        {"shot_id": "shot2", "required_event": "抬头看向道路尽头", "supported": True, "source_quote": "抬头看向道路尽头"},
+    ]
+
+
+def test_wrong_order_fixture_remains_visible_to_semantic_event_order_check() -> None:
+    source = "林舟先缓慢抬头看向道路尽头，随后继续站在同一公交站，继续穿深蓝色夹克，右手仍拿着同一封白色信封。"
+    output = DirectorOutput.model_validate(base_output())
+    output.shots[1].action_path = "林舟先缓慢抬头看向道路尽头。"
+    output.shots[1].video_prompt = output.shots[1].action_path
+    result = _append_supported_events(output, rain_facts(), _rain_shot2_supports(), source)
+    action_path = result.shots[1].action_path
+    expected_order = ["抬头看向道路尽头", "林舟继续站在同一公交站", "继续穿深蓝色夹克", "右手仍拿着同一封白色信封"]
+    assert [action_path.index(event) for event in expected_order] == sorted(action_path.index(event) for event in expected_order)
+    assert action_path.endswith("导演动作描述：\n林舟先缓慢抬头看向道路尽头。")
+    assert "SEMANTIC_EVENT_ORDER" in {issue.rule_id for issue in _event_order_precheck(rain_facts(), result)}
+
+
+def test_correct_order_fixture_keeps_semantic_event_order_clean() -> None:
+    source = "林舟继续站在同一公交站，继续穿深蓝色夹克，右手仍拿着同一封白色信封，随后抬头看向道路尽头。"
+    output = DirectorOutput.model_validate(base_output())
+    output.shots[1].action_path = "林舟随后抬头看向道路尽头。"
+    output.shots[1].video_prompt = output.shots[1].action_path
+    result = _append_supported_events(output, rain_facts(), _rain_shot2_supports(), source)
+    assert "SEMANTIC_EVENT_ORDER" not in {issue.rule_id for issue in _event_order_precheck(rain_facts(), result)}
 
 
 def test_forged_and_wrong_shot_evidence_never_enters_event_block() -> None:

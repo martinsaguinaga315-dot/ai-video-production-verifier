@@ -44,7 +44,8 @@ def test_compact_draft_builds_local_fields_and_preserves_conflicts() -> None:
     assert output.project == {"title": "雨夜回信", "total_duration": 6.0}
     assert [(shot.start_time, shot.end_time, shot.final_duration) for shot in output.shots] == [(0.0, 3.0, 3.0), (3.0, 6.0, 3.0)]
     assert output.shots[0].first_frame_prompt == output.shots[0].opening_state
-    assert output.shots[0].video_prompt == "林舟低头看信封"
+    assert output.shots[0].video_prompt.startswith("固定事实事件（按导演原文顺序）：")
+    assert "镜头结束时仍然拿着信封" in output.shots[0].video_prompt
     assert output.shots[0].generation_segments[0].name == "shot1"
     assert output.shots[1].dialogue[0].text == "我终于回来了。"
     assert "陌生人" in output.shots[0].characters
