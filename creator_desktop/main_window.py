@@ -13,6 +13,8 @@ from creator_desktop.analysis_controller import AnalysisController
 from creator_desktop.api_key_dialog import ApiKeyDialog
 from creator_desktop.api_key_state import main_api_status, semantic_mode_requires_configuration
 from creator_desktop.app_paths import log_dir
+from creator_desktop.app_paths import is_smoke_test, resource_path
+from app_version import APP_NAME
 from creator_desktop.creator_result import CreatorResultFrame
 from creator_desktop.credentials import CredentialError, has_saved_api_key, load_api_key
 from creator_desktop.director_review import DirectorReviewFrame
@@ -39,7 +41,7 @@ def _logger() -> logging.Logger:
 class MainWindow(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("AI视频制作核验器")
+        self.title(APP_NAME)
         self.geometry("1080x760")
         self.minsize(920, 650)
         self._log, self._controller, self._analysis = _logger(), VerificationController(), AnalysisController()
@@ -53,7 +55,8 @@ class MainWindow(ctk.CTk):
         self._build()
         self._refresh_api_status()
         self.after(100, self._poll_events)
-        self.after(150, self._offer_first_run_settings)
+        if not is_smoke_test():
+            self.after(150, self._offer_first_run_settings)
 
     def _build(self) -> None:
         self.grid_columnconfigure(0, weight=1)
@@ -111,7 +114,7 @@ class MainWindow(ctk.CTk):
         if path: self.output_path.set(path)
 
     def _load_example(self, name: str) -> None:
-        root = Path(__file__).resolve().parent.parent / "examples" / name
+        root = resource_path("examples", name)
         self.facts_path.set(str(root / "facts.json")); self.output_path.set(str(root / "director_output.json")); self.status.set(f"已加载{name}示例。")
 
     def _open_api_settings(self) -> None:
