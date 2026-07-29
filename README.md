@@ -4,6 +4,31 @@ A pre-production validation tool for structured AI video storyboards and shot pl
 
 It checks locked facts against a proposed director output before image or video generation begins.
 
+## Windows quick start
+
+The Windows installer and portable ZIP build pipeline is ready for the upcoming
+`v0.2.0` release. It is not a published release yet.
+
+1. Open GitHub Releases when `v0.2.0` is published.
+2. Download the Setup installer, or download the Portable ZIP and extract it fully.
+3. Start **AI视频制作核验器** from the Start menu, desktop shortcut, or extracted folder.
+4. On first use, enter your own DeepSeek API Key if you need creator mode or semantic auditing.
+5. Paste a script and director plan, then choose automatic analysis and verification.
+6. Review or export the JSON report.
+
+The installer target is Windows x64 only. You do not need Python, Git, PowerShell,
+pip, a virtual environment, source code, or a `.env` file. The portable ZIP also
+does not require Python; do not run the EXE from inside the ZIP.
+
+### Privacy and modes
+
+- The app contains no API Key and stores a configured key in Windows Credential Manager.
+- The app does not upload telemetry.
+- Professional JSON mode can run local hard rules without an API Key.
+- Creator-mode structuring and optional DeepSeek semantic auditing send only the
+  relevant user input to the configured DeepSeek endpoint and may consume API quota.
+- Normal creator mode and professional JSON mode use the same stable verification core.
+
 ## What it checks
 
 Deterministic rules cover:
@@ -30,7 +55,7 @@ Optional DeepSeek semantic auditing adds:
 
 ## Current status
 
-Version: `0.2.0-dev`
+Version: `0.2.0`
 
 Current checked baseline:
 
@@ -167,8 +192,9 @@ python desktop_app.py
 ```
 
 The desktop app stores the DeepSeek API key in Windows Credential Manager; it
-does not put the key in a project JSON file, report, or ordinary settings file.
-Windows packaging is not part of this release stage.
+does not put the key in a project JSON file, report, ordinary settings file, or
+the installation folder. The Windows packaging pipeline is ready for `v0.2.0`;
+use GitHub Releases once the release is actually published.
 
 ## Creator mode (source development build)
 
@@ -187,8 +213,7 @@ telemetry upload.
 
 **专业JSON模式** remains available for direct `facts.json` and
 `director_output.json` import. Its local hard-rule verification can run
-offline. This is still a source development build; a Windows installer will be
-provided in a later stage.
+offline. CLI usage below is intended for developers and automation.
 
 ## CLI
 
