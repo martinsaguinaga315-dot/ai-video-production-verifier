@@ -34,4 +34,5 @@ def test_sensitive_scan_rejects_forbidden_build_paths_and_archives(tmp_path: Pat
 def test_windows_build_reads_unicode_app_name_as_utf8() -> None:
     script = Path("packaging/build_windows.ps1").read_text(encoding="utf-8")
     assert "$env:PYTHONIOENCODING = 'utf-8'" in script
+    assert "$env:PYTHONUTF8 = '1'" in script
     assert "Application name metadata was empty." in script
