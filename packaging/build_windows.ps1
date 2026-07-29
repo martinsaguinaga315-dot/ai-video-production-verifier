@@ -11,7 +11,9 @@ function Invoke-Checked([string]$File, [string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "Command failed ($LASTEXITCODE): $File $Arguments" }
 }
 
-$pythonExe = (& py -3.11 -c "import sys; print(sys.executable)" 2>$null).Trim()
+$pyLauncher = Get-Command py -ErrorAction SilentlyContinue
+if (-not $pyLauncher) { throw 'Python 3.11 is required, but the Windows py launcher is unavailable. Install Python 3.11, then rerun packaging/build_windows.ps1.' }
+$pythonExe = (& $pyLauncher.Source -3.11 -c "import sys; print(sys.executable)" 2>$null).Trim()
 if (-not $pythonExe) { throw 'Python 3.11 is required. Install Python 3.11, then rerun packaging/build_windows.ps1.' }
 $version = (& $pythonExe -c "from app_version import VERSION; print(VERSION)").Trim()
 $appName = (& $pythonExe -c "from app_version import APP_NAME; print(APP_NAME)").Trim()
