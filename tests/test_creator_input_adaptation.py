@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from creator_import.compact_director_models import CompactDirectorDraft
 from creator_import.director_parser import _append_supported_events, build_director_output_from_compact_draft
-from llm_audit import _event_order_precheck
+from llm_audit import _event_order_precheck, _identity_continuity_precheck
 from models import DirectorOutput, ProjectFacts
 from rules import verify
 from tests.test_director_event_anchoring import base_output, rain_facts
@@ -64,6 +64,85 @@ def test_forged_appearance_quote_does_not_enable_baseline_inheritance() -> None:
     )
     assert output.characters[0].fixed_appearance == ""
     assert "APPEARANCE_MISSING" in {issue.rule_id for issue in verify(character_facts(), output).issues}
+
+
+def prop_facts() -> ProjectFacts:
+    return ProjectFacts.model_validate({
+        "title": "道具适配", "total_duration": 3, "shot_count": 1,
+        "characters": [{"character_id": "林舟"}],
+        "props": [{"prop_id": "白色信封", "owner": "林舟"}],
+        "shots": [{"shot_id": "S01", "start_time": 0, "end_time": 3}],
+    })
+
+
+def compact_prop(**overrides: object) -> CompactDirectorDraft:
+    prop = {"prop_id": "白色信封", **overrides}
+    return CompactDirectorDraft.model_validate({
+        "props": [prop],
+        "shots": [{"shot_id": "S01", "opening_state": "林舟站在门口", "action_path": "林舟等待"}],
+    })
+
+
+def test_empty_prop_owner_inherits_confirmed_fact_owner() -> None:
+    output = build_director_output_from_compact_draft(compact_prop(), prop_facts(), "林舟站在门口。")
+    assert output.props[0]["owner"] == "林舟"
+    assert "PROP_OWNER_MISMATCH" not in {issue.rule_id for issue in verify(prop_facts(), output).issues}
+
+
+def test_verified_prop_owner_support_normalizes_to_fact_owner() -> None:
+    source = "白色信封属于林舟。"
+    output = build_director_output_from_compact_draft(
+        compact_prop(owner="林舟", owner_source_quote="白色信封属于林舟"), prop_facts(), source,
+    )
+    assert output.props[0]["owner"] == "林舟"
+
+
+def test_verified_conflicting_prop_owner_is_preserved_for_hard_rule() -> None:
+    source = "白色信封属于苏然。"
+    output = build_director_output_from_compact_draft(
+        compact_prop(owner="苏然", owner_source_quote="白色信封属于苏然"), prop_facts(), source,
+    )
+    assert output.props[0]["owner"] == "苏然"
+    assert "PROP_OWNER_MISMATCH" in {issue.rule_id for issue in verify(prop_facts(), output).issues}
+
+
+def test_forged_prop_owner_quote_uses_confirmed_baseline_instead() -> None:
+    output = build_director_output_from_compact_draft(
+        compact_prop(owner="苏然", owner_source_quote="伪造的白色信封归属"), prop_facts(), "林舟站在门口。",
+    )
+    assert output.props[0]["owner"] == "林舟"
+    assert "PROP_OWNER_MISMATCH" not in {issue.rule_id for issue in verify(prop_facts(), output).issues}
+
+
+def test_unknown_prop_is_preserved_without_inheriting_another_owner() -> None:
+    draft = CompactDirectorDraft.model_validate({
+        "props": [{"prop_id": "红色雨伞", "owner": "苏然", "owner_source_quote": "红色雨伞属于苏然"}],
+        "shots": [{"shot_id": "S01", "opening_state": "林舟站在门口", "action_path": "林舟等待"}],
+    })
+    output = build_director_output_from_compact_draft(draft, prop_facts(), "红色雨伞属于苏然。")
+    assert output.props == [{"prop_id": "红色雨伞", "owner": "苏然"}]
+    assert "UNKNOWN_PROP" in {issue.rule_id for issue in verify(prop_facts(), output).issues}
+
+
+def test_appearance_conflict_fixture_inherits_prop_owner_without_extra_mismatch() -> None:
+    facts = ProjectFacts.model_validate({
+        "title": "外观冲突", "total_duration": 3, "shot_count": 1,
+        "characters": [{"character_id": "林舟", "fixed_appearance_terms": ["25岁", "东亚男性"]}],
+        "props": [{"prop_id": "白色信封", "owner": "林舟"}],
+        "shots": [{"shot_id": "S01", "start_time": 0, "end_time": 3}],
+    })
+    source = "40岁的欧美男性林舟变成另一个人，拿着白色信封。"
+    draft = CompactDirectorDraft.model_validate({
+        "characters": [{"character_id": "林舟", "fixed_appearance": "40岁的欧美男性", "appearance_source_quote": "40岁的欧美男性林舟"}],
+        "props": [{"prop_id": "白色信封"}],
+        "shots": [{"shot_id": "S01", "characters": ["林舟"], "opening_state": "林舟站在门口", "action_path": "林舟变成另一个人"}],
+    })
+    output = build_director_output_from_compact_draft(draft, facts, source)
+    hard_rule_ids = {issue.rule_id for issue in verify(facts, output).issues}
+    identity_rule_ids = {issue.rule_id for issue in _identity_continuity_precheck(facts, output)}
+    assert hard_rule_ids == {"APPEARANCE_MISSING"}
+    assert identity_rule_ids == {"SEMANTIC_IDENTITY_CONTINUITY"}
+    assert output.props[0]["owner"] == "林舟"
 
 
 def event_facts() -> ProjectFacts:

@@ -30,7 +30,7 @@ def compact_payload(*, unknown_character: bool = False) -> dict:
     return {
         "project": {"title": "模型错误标题"},
         "characters": [{"character_id": "林舟", "fixed_costume": "深蓝色夹克", "fixed_props": ["白色信封"]}],
-        "props": [{"prop_id": "白色信封", "owner": "林舟"}],
+        "props": [{"prop_id": "白色信封"}],
         "shots": [
             {"shot_id": "shot1", "characters": characters, "opening_state": "林舟站在雨夜公交站下", "action_path": "林舟低头看信封", "ending_state": "林舟仍然拿着信封", "required_event_support": [by_shot["shot1"]]},
             {"shot_id": "shot2", "characters": ["林舟"], "opening_state": "同一公交站", "action_path": "林舟抬头看向道路尽头", "ending_state": "林舟站在站牌下", "dialogue": [{"speaker": "林舟", "text": "我终于回来了。"}], "required_event_support": [by_shot["shot2"]]},

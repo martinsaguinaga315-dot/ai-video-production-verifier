@@ -410,6 +410,47 @@ def _normalize_compact_characters(
     return characters
 
 
+def _normalize_compact_props(
+    draft: CompactDirectorDraft, facts: ProjectFacts, source_text: str,
+) -> list[dict[str, Any]]:
+    """Inherit reviewed prop ownership only when the draft supplies no evidence."""
+    locks = {
+        _normalized_evidence(lock.prop_id): lock
+        for lock in facts.props
+        if _normalized_evidence(lock.prop_id)
+    }
+    props: list[dict[str, Any]] = []
+    for compact_prop in draft.props:
+        prop = compact_prop.model_dump(mode="json", exclude={"owner_source_quote"})
+        lock = locks.get(_normalized_evidence(compact_prop.prop_id))
+        if not lock:
+            # Unknown props remain visible to the existing hard rules.
+            props.append(prop)
+            continue
+
+        expected_owner = str(lock.owner or "").strip()
+        owner = str(prop.get("owner", "")).strip()
+        owner_quote = compact_prop.owner_source_quote.strip()
+        quote_is_valid = _quote_is_in_source(owner_quote, source_text)
+        quote_supports_expected_owner = (
+            quote_is_valid
+            and bool(expected_owner)
+            and _normalized_evidence(expected_owner) in _normalized_evidence(owner_quote)
+        )
+        if not owner_quote and not owner:
+            prop["owner"] = expected_owner
+        elif quote_supports_expected_owner:
+            prop["owner"] = expected_owner
+        elif owner_quote and not quote_is_valid:
+            # A forged quote is not ownership evidence.  Treat it as an
+            # unmentioned owner and use the reviewed prop lock instead.
+            prop["owner"] = expected_owner
+        # A verified quote that does not support the facts (and any supplied
+        # owner) is intentionally preserved for PROP_OWNER_MISMATCH.
+        props.append(prop)
+    return props
+
+
 def build_director_output_from_compact_draft(
     draft: CompactDirectorDraft, facts: ProjectFacts, source_text: str,
 ) -> DirectorOutput:
@@ -435,7 +476,7 @@ def build_director_output_from_compact_draft(
         "project": {"title": facts.title, "total_duration": facts.total_duration},
         "characters": _normalize_compact_characters(draft, facts, source_text),
         "locations": draft.locations,
-        "props": draft.props,
+        "props": _normalize_compact_props(draft, facts, source_text),
         "shots": output_shots,
     })
     return _complete_structure(_append_supported_events(output, facts, supports, source_text), facts)

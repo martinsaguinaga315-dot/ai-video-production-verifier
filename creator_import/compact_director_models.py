@@ -32,6 +32,15 @@ class CompactCharacterDraft(BaseModel):
     full_text: str = ""
 
 
+class CompactPropDraft(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    prop_id: str = ""
+    owner: str = ""
+    # Evidence is local conversion metadata, not DirectorOutput data.
+    owner_source_quote: str = ""
+
+
 class CompactShotDraft(BaseModel):
     model_config = ConfigDict(extra="allow")
     shot_id: str
@@ -51,5 +60,5 @@ class CompactDirectorDraft(BaseModel):
     project: CompactProjectDraft = Field(default_factory=CompactProjectDraft)
     characters: list[CompactCharacterDraft] = Field(default_factory=list)
     locations: list[dict[str, Any]] = Field(default_factory=list)
-    props: list[dict[str, Any]] = Field(default_factory=list)
+    props: list[CompactPropDraft] = Field(default_factory=list)
     shots: list[CompactShotDraft]
