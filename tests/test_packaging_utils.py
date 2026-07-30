@@ -41,3 +41,11 @@ def test_windows_build_reads_unicode_app_name_as_utf8() -> None:
 def test_frozen_build_verifies_pyinstaller_internal_resources() -> None:
     script = Path("packaging/verify_build.ps1").read_text(encoding="utf-8")
     assert '"$AppName\\_internal\\$required"' in script
+
+
+def test_frozen_build_smoke_test_waits_for_clean_exit() -> None:
+    script = Path("packaging/verify_build.ps1").read_text(encoding="utf-8")
+    assert "$process.WaitForExit(10000)" in script
+    assert "$process.ExitCode -ne 0" in script
+    assert "Frozen EXE smoke test timed out after 10 seconds." in script
+    assert "Frozen EXE exited early" not in script
