@@ -60,5 +60,16 @@ $scan = & $buildPython -c "from pathlib import Path; from build_support.release_
 if ($LASTEXITCODE -ne 0) { throw "Sensitive information scan failed:`n$scan" }
 Write-Output 'SCAN_RESULT = OK'
 $commit = (& git rev-parse HEAD).Trim(); $pythonVersion = (& $buildPython --version).Trim(); $pyinstallerVersion = (& $buildPython -m PyInstaller --version).Trim()
-& $buildPython -c "from pathlib import Path; from build_support.release_utils import write_manifest,write_sha256s; items=[Path(r'$p') for p in r'$($artifacts -join '|')'.split('|') if p]; root=Path(r'$releaseDir'); write_sha256s(items,root/'SHA256SUMS.txt'); write_manifest(root/'release_manifest_v$version.json',commit=r'$commit',python_version=r'$pythonVersion',pyinstaller_version=r'$pyinstallerVersion',test_result='pytest passed',artifacts=items,smoke_passed=True,scan_passed=True,installer_built=$($installerBuilt.ToString().ToLower()),portable_built=True)"
+$metadataArgs = @(
+    'build_support\generate_release_metadata.py',
+    '--release-dir', $releaseDir,
+    '--version', $version,
+    '--commit', $commit,
+    '--python-version', $pythonVersion,
+    '--pyinstaller-version', $pyinstallerVersion,
+    '--portable-built'
+)
+if ($installerBuilt) { $metadataArgs += '--installer-built' }
+foreach ($artifact in $artifacts) { $metadataArgs += @('--artifact', [string]$artifact) }
+Invoke-Checked $buildPython $metadataArgs
 Get-ChildItem -LiteralPath $releaseDir -File | ForEach-Object { "ARTIFACT: $($_.FullName) SHA256=$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash)" }

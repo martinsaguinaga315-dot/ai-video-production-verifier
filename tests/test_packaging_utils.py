@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import struct
+import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
@@ -108,3 +110,60 @@ def test_windows_application_icon_is_a_valid_multiresolution_ico() -> None:
         raw_width == raw_height == 0 and width == height == 256
         for raw_width, raw_height, width, height, _bpp, _size, _offset in entries
     )
+
+
+def test_release_metadata_cli_writes_checksums_and_manifest(tmp_path: Path) -> None:
+    artifact_one, artifact_two = tmp_path / "portable.zip", tmp_path / "setup.exe"
+    artifact_one.write_bytes(b"portable artifact")
+    artifact_two.write_bytes(b"installer artifact")
+    release_dir = tmp_path / "release"
+    script = Path("build_support/generate_release_metadata.py")
+    command = [
+        sys.executable,
+        str(script),
+        "--release-dir", str(release_dir),
+        "--version", "0.2.0",
+        "--commit", "abc123",
+        "--python-version", "Python 3.11",
+        "--pyinstaller-version", "6.12.0",
+        "--installer-built",
+        "--portable-built",
+        "--artifact", str(artifact_one),
+        "--artifact", str(artifact_two),
+    ]
+    result = subprocess.run(command, text=True, capture_output=True)
+    assert result.returncode == 0, result.stderr
+
+    checksums = (release_dir / "SHA256SUMS.txt").read_text(encoding="utf-8")
+    assert checksums == f"{sha256(artifact_one)} *portable.zip\n{sha256(artifact_two)} *setup.exe\n"
+    manifest = json.loads((release_dir / "release_manifest_v0.2.0.json").read_text(encoding="utf-8"))
+    assert [artifact["name"] for artifact in manifest["artifacts"]] == ["portable.zip", "setup.exe"]
+    assert manifest["installer_built"] is True
+    assert manifest["portable_built"] is True
+
+
+def test_release_metadata_cli_rejects_missing_artifact(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "build_support/generate_release_metadata.py",
+            "--release-dir", str(tmp_path / "release"),
+            "--version", "0.2.0",
+            "--commit", "abc123",
+            "--python-version", "Python 3.11",
+            "--pyinstaller-version", "6.12.0",
+            "--artifact", str(tmp_path / "missing.exe"),
+        ],
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode != 0
+    assert "missing.exe" in result.stderr
+
+
+def test_windows_build_uses_safe_release_metadata_cli() -> None:
+    script = Path("packaging/build_windows.ps1").read_text(encoding="utf-8")
+    assert "Path(r'$p')" not in script
+    assert "ToString().ToLower()" not in script
+    assert "build_support\\generate_release_metadata.py" in script
+    assert "Invoke-Checked $buildPython $metadataArgs" in script
