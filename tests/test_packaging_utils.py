@@ -1,10 +1,47 @@
 from __future__ import annotations
 
 import json
+import struct
 import zipfile
 from pathlib import Path
 
 from build_support.release_utils import scan_tree, scan_zip, sha256, write_manifest, write_sha256s
+
+
+def _ico_image_dimensions(payload: bytes) -> tuple[int, int]:
+    """Return the dimensions encoded in an ICO PNG or DIB image payload."""
+    if payload.startswith(b"\x89PNG\r\n\x1a\n"):
+        width, height = struct.unpack_from(">II", payload, 16)
+        return width, height
+
+    header_size, width, doubled_height = struct.unpack_from("<Iii", payload)
+    assert header_size >= 40
+    assert width > 0
+    assert doubled_height % 2 == 0
+    return width, abs(doubled_height) // 2
+
+
+def _ico_entries(data: bytes) -> list[tuple[int, int, int, int, int, int, int]]:
+    reserved, image_type, image_count = struct.unpack_from("<HHH", data)
+    assert reserved == 0
+    assert image_type == 1
+    assert image_count >= 7
+    assert len(data) >= 6 + image_count * 16
+
+    entries = []
+    for index in range(image_count):
+        directory_width, directory_height, _colors, _reserved, _planes, bits_per_pixel, size, offset = struct.unpack_from(
+            "<BBBBHHII", data, 6 + index * 16
+        )
+        assert size > 0
+        assert offset >= 6 + image_count * 16
+        assert offset + size <= len(data)
+        width = 256 if directory_width == 0 else directory_width
+        height = 256 if directory_height == 0 else directory_height
+        payload_width, payload_height = _ico_image_dimensions(data[offset : offset + size])
+        assert (width, height) == (payload_width, payload_height)
+        entries.append((directory_width, directory_height, width, height, bits_per_pixel, size, offset))
+    return entries
 
 
 def test_sha256_and_manifest_include_artifact_metadata(tmp_path: Path) -> None:
@@ -60,3 +97,14 @@ def test_packaging_scripts_copy_children_without_literal_wildcards() -> None:
     assert "Get-ChildItem -LiteralPath $installerSource -Force" in windows
     assert "Copy-Item -LiteralPath $_.FullName" in portable
     assert "Copy-Item -LiteralPath $_.FullName" in windows
+
+
+def test_windows_application_icon_is_a_valid_multiresolution_ico() -> None:
+    entries = _ico_entries(Path("assets/app.ico").read_bytes())
+    actual_sizes = {(width, height) for _raw_width, _raw_height, width, height, _bpp, _size, _offset in entries}
+    assert {(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)} <= actual_sizes
+    assert all(bits_per_pixel == 32 for _raw_width, _raw_height, _width, _height, bits_per_pixel, _size, _offset in entries)
+    assert any(
+        raw_width == raw_height == 0 and width == height == 256
+        for raw_width, raw_height, width, height, _bpp, _size, _offset in entries
+    )
