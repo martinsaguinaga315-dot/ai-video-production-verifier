@@ -27,7 +27,7 @@ jobs:
           rules.py llm_audit.py desktop_app.py creator_desktop/*.py
 
       - name: Run pytest suite
-        run: pytest -q tests
+        run: python -m pytest -q tests
 
       - name: Run clean example
         run: |
