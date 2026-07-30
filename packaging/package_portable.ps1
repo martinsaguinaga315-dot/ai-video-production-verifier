@@ -3,7 +3,7 @@ param([Parameter(Mandatory=$true)][string]$DistRoot,[Parameter(Mandatory=$true)]
 $ErrorActionPreference='Stop'; $folderName="AI-Video-Production-Verifier-Portable-v$Version"; $source=Join-Path $DistRoot $AppName
 if(-not(Test-Path -LiteralPath (Join-Path $source "$AppName.exe"))){throw "Missing onedir application: $source"}
 $portableRoot=Join-Path $OutputRoot $folderName; Remove-Item -LiteralPath $portableRoot -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force -Path $portableRoot|Out-Null
-Copy-Item -LiteralPath (Join-Path $source '*') -Destination $portableRoot -Recurse -Force; Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\LICENSE') -Destination $portableRoot -Force
+Get-ChildItem -LiteralPath $source -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $portableRoot -Recurse -Force }; Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\LICENSE') -Destination $portableRoot -Force
 @"
 AI Video Production Verifier v$Version - Quick Start
 1. No Python installation is required. Extract this ZIP completely before running.

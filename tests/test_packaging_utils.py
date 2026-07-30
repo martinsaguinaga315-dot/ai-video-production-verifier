@@ -49,3 +49,14 @@ def test_frozen_build_smoke_test_waits_for_clean_exit() -> None:
     assert "$process.ExitCode -ne 0" in script
     assert "Frozen EXE smoke test timed out after 10 seconds." in script
     assert "Frozen EXE exited early" not in script
+
+
+def test_packaging_scripts_copy_children_without_literal_wildcards() -> None:
+    portable = Path("packaging/package_portable.ps1").read_text(encoding="utf-8")
+    windows = Path("packaging/build_windows.ps1").read_text(encoding="utf-8")
+    assert "Copy-Item -LiteralPath (Join-Path $source '*')" not in portable
+    assert 'Copy-Item -LiteralPath (Join-Path $distDir "$appName\\*")' not in windows
+    assert "Get-ChildItem -LiteralPath $source -Force" in portable
+    assert "Get-ChildItem -LiteralPath $installerSource -Force" in windows
+    assert "Copy-Item -LiteralPath $_.FullName" in portable
+    assert "Copy-Item -LiteralPath $_.FullName" in windows

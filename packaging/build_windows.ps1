@@ -46,7 +46,8 @@ if (-not $SkipInstaller) {
     if ($iscc) {
         $installerStage = Join-Path $releaseDir 'installer-stage'
         New-Item -ItemType Directory -Force -Path $installerStage | Out-Null
-        Copy-Item -LiteralPath (Join-Path $distDir "$appName\*") -Destination $installerStage -Recurse -Force
+        $installerSource = Join-Path $distDir $appName
+        Get-ChildItem -LiteralPath $installerSource -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $installerStage -Recurse -Force }
         Invoke-Checked $iscc @("/DMyAppVersion=$version", "/DMyAppName=$appName", 'packaging\installer.iss'); $installerBuilt = $true
     }
     else { Write-Warning 'Inno Setup 6 was not found. Portable build completed; installer was not generated.' }
