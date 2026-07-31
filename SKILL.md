@@ -16,6 +16,10 @@ description: Validate structured AI video storyboards and production plans befor
 - The Windows onedir build, portable ZIP, and installer do not bundle API keys,
   `.env` files, user reports, or telemetry. Keys remain in Windows Credential
   Manager and are never written to release artifacts.
+- Version `0.2.0` is a Public Beta / release candidate, not a published GitHub
+  Release.
+- Semantic auditing is experimental and requires human review. The score
+  measures consistency with locked facts, not artistic quality.
 
 Validate an AI video production plan against locked project facts before generation begins.
 
@@ -313,7 +317,7 @@ When invoking this skill:
 
 ## Current limitations
 
-Version `0.1.0` validates structured production plans only.
+Version `0.2.0` validates structured production plans only.
 
 It does not yet:
 

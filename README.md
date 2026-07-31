@@ -6,8 +6,9 @@ It checks locked facts against a proposed director output before image or video 
 
 ## Windows quick start
 
-The Windows installer and portable ZIP build pipeline is ready for the upcoming
-`v0.2.0` release. It is not a published release yet.
+The Windows installer and portable ZIP build pipeline is ready for the
+`v0.2.0` Public Beta / release candidate. It is not a published GitHub Release
+yet.
 
 1. Open GitHub Releases when `v0.2.0` is published.
 2. Download the Setup installer, or download the Portable ZIP and extract it fully.
@@ -25,8 +26,11 @@ does not require Python; do not run the EXE from inside the ZIP.
 - The app contains no API Key and stores a configured key in Windows Credential Manager.
 - The app does not upload telemetry.
 - Professional JSON mode can run local hard rules without an API Key.
-- Creator-mode structuring and optional DeepSeek semantic auditing send only the
-  relevant user input to the configured DeepSeek endpoint and may consume API quota.
+- Creator-mode structuring and optional DeepSeek semantic auditing require the
+  user's own DeepSeek API Key, send only relevant user input to the configured
+  DeepSeek endpoint, and may consume API quota.
+- Semantic auditing is experimental; review its results before acting on them.
+- The score measures consistency with locked production facts, not artistic quality.
 - Normal creator mode and professional JSON mode use the same stable verification core.
 
 ## What it checks
@@ -60,7 +64,7 @@ Version: `0.2.0`
 Current checked baseline:
 
 - 2 versioned CLI example cases
-- 14 non-network pytest checks for the shared service, CLI, credentials, and controller
+- 98 non-network pytest checks passed for this release-candidate fix validation
 - no live semantic API calls in automated tests
 
 The semantic layer is experimental. The deterministic layer is the primary stable interface.
@@ -69,7 +73,8 @@ The semantic layer is experimental. The deterministic layer is the primary stabl
 
 - Python 3.11+
 - Windows, macOS, or Linux
-- DeepSeek API key only when using `--semantic`
+- Your own DeepSeek API Key only for creator mode or `--semantic`; professional
+  JSON local hard-rule verification needs no API Key
 
 ## Installation
 
@@ -193,8 +198,9 @@ python desktop_app.py
 
 The desktop app stores the DeepSeek API key in Windows Credential Manager; it
 does not put the key in a project JSON file, report, ordinary settings file, or
-the installation folder. The Windows packaging pipeline is ready for `v0.2.0`;
-use GitHub Releases once the release is actually published.
+the installation folder. The Windows packaging pipeline is ready for the
+`v0.2.0` Public Beta / release candidate; use GitHub Releases once it is
+actually published.
 
 ## Creator mode (source development build)
 
@@ -331,9 +337,9 @@ The score measures production-plan compliance, not artistic quality.
 
 ## Limitations
 
-Version `0.1.0` does not yet:
+Version `0.2.0` does not yet:
 
-- inspect generated images or video
+- inspect generated images, video, or visual frames
 - perform visual identity verification
 - detect lip-sync errors
 - validate actual camera motion
