@@ -93,19 +93,19 @@ story_generation/
 
 `StoryClient` 仅暴露 `request_json()`、`request_text()`、`stream_text()`、`cancel()` 和 usage 记录；每次请求均传递 `model`、thinking mode、temperature、max_tokens、timeout、response_format、stream、request_id、stage_name。统一错误至少为：`AuthenticationError`、`InsufficientBalanceError`、`InvalidRequestError`、`RateLimitError`、`NetworkError`、`TimeoutError`、`ServerError`、`EmptyResponseError`、`TruncatedResponseError`、`InvalidJsonError`、`SchemaValidationError`、`CancelledError`。可重试：网络、超时、429、500、503、空响应（最多 2 次，指数退避+抖动）；不可重试：取消、401、402、422、schema/JSON（改走一次明确的局部 repair 阶段）。
 
-## 5. 创作领域模型（仅设计）
+## 5. 创作领域模型与严格合同（仅设计）
 
 | 模型 | 职责、必填字段（类型） | 来源 / 可编辑 / 权威约束 / 发给 DeepSeek / 导出 | 到旧模型转换 |
 |---|---|---|---|
 | `CreativeBrief` | 创作意图；`premise:str`、`format:str`、`target_duration_s:float`、`audience:str`、`tone:list[str]`、`constraints:list[Constraint]` | 用户+AI建议 / 是 / 用户确认后约束 / 是 / 是 | 约束和时长进入 `ProjectFacts` |
-| `StoryBible` | 故事全局真相；`logline:str`、`theme:list[str]`、`characters:list[CharacterBible]`、`world:WorldBible`、`canon_rules:list[str]` | AI建议+确认 / 是 / 是 / 是 / 是 | 人物、地点、道具、硬约束进入 `ProjectFacts` |
+| `StoryBible` | 故事全局真相；`logline:str`、`theme:list[str]`、`characters:list[CharacterBible]`、`world:WorldBible`、`canon_rules:list[str]` | AI建议+确认 / 是 / 是 / 是 / 是 | 人物/道具进入 `ProjectFacts`；地点定义进入 `DirectorOutput.locations` |
 | `CharacterBible` | 人物身份与弧线；`id:str`、`name:str`、`role:str`、`appearance:str`、`goals:list[str]`、`allowed_actions:list[str]` | AI/用户 / 是 / 确认后是 / 是 / 是 | `ProjectFacts.characters`，并约束 `DirectorOutput` |
-| `WorldBible` | 场景世界观；`locations:list[Location]`、`props:list[Prop]`、`rules:list[str]` | AI/用户 / 是 / 确认后是 / 是 / 是 | `ProjectFacts.locations/props` |
+| `WorldBible` | 场景世界观；`locations:list[LocationDefinition]`、`props:list[PropDefinition]`、`rules:list[str]` | AI/用户 / 是 / 确认后是 / 是 / 是 | 地点定义进入 `DirectorOutput.locations`；道具进入稳定模型的 props |
 | `PlotOutline` | 叙事大纲；`beats:list[PlotBeat]`、`ending:str` | AI / 是 / 否（确认后为计划约束） / 是 / 是 | 生成 shot 的 required events |
 | `PlotBeat` | 单一叙事拍；`id:str`、`purpose:str`、`conflict:str`、`turn:str`、`source_refs:list[str]` | AI / 是 / 否 / 是 / 是 | 映射 scene required events |
-| `ScenePlan` | 可执行场景规划；`scenes:list[Scene]`、`total_duration_s:float` | AI+确认 / 是 / 是 / 是 / 是 | `ProjectFacts.shots` 时间、地点、事件 |
+| `ScenePlan` | 可执行场景规划；`scenes:list[SceneDefinition]`、`total_duration_s:float` | AI+确认 / 是 / 是 / 是 / 是 | `ProjectFacts.shots` 时间和事件；地点由 `location_id` 保留在创作域 |
 | `StoryboardDraft` | 可编辑的分镜草案；`shots:list[StoryboardShot]`、`version:int` | AI+用户编辑 / 是 / 是 / 是 / 是 | 转为两个稳定模型 |
-| `StoryboardShot` | 镜头；`id:str`、`scene_id:str`、`duration_s:float`、`characters:list[str]`、`first_frame:str`、`action:str`、`dialogue:list[Line]`、`camera:str`、`continuity_refs:list[str]` | AI+用户 / 是 / 确认后是 / 是 / 是 | 一个 `ProjectFacts.shot` + 一个 `DirectorOutput.shot` |
+| `StoryboardShot` | 镜头；完整确定性镜头合同（字段见 Phase 0.1 修订） | AI+用户 / 是 / 确认后是 / 是 / 是 | 一个 `ExpectedShot` + 一个 `OutputShot` |
 | `GenerationRequest` | 一次阶段请求；`stage_name:str`、`input_refs:list[str]`、`prompt_version:str`、`request_id:str` | 系统 / 否 / 否 / 是 / 元数据 | 不转换 |
 | `GenerationSettings` | 模型行为；`model:str`、`thinking_mode:enum`、`temperature:float|None`、`max_tokens:int`、`timeout_s:float` | 用户设置 / 是 / 否 / 是 / 是（无 key） | 不转换 |
 | `GenerationMetadata` | 可追溯而不泄密；`request_id`、`model`、`prompt_version`、`usage`、`finish_reason`、timestamps | 系统 / 否 / 否 / 否 / 是（脱敏） | 不转换 |
@@ -163,3 +163,52 @@ story_generation/
 | 10 保存/导出/打包 | storage/export/packaging（经批准后） | 恢复、打包、验收 | schema migration；凭据泄露 |
 
 Phase 0 之后停止，等待架构审查；不得开始 Phase 1。
+
+## 11. Phase 0.1 合同修订
+
+### 稳定模型映射
+
+经 `models.py` 复核，`ProjectFacts` 只有 `title`、`total_duration`、`shot_count`、`characters`、`props`、`shots`、`global_forbidden_events`，**没有 `locations` 字段**。地点定义必须转换到 `DirectorOutput.locations`；镜头地点由 `SceneDefinition.location_id` / `StoryboardShot.location_id` 保存。地点的强制事件或限制，转换到对应 `ExpectedShot.required_events` / `forbidden_events`。Phase 6 转换器必须适配这些既有模型，绝不向 `ProjectFacts` 强增字段。
+
+### 辅助类型与字段级 provenance
+
+所有新领域模型默认使用 `ConfigDict(extra="forbid", str_strip_whitespace=True)`；DeepSeek 未知字段必须显式产生 `SchemaValidationError`，不得保留。项目升级依赖 `schema_version` 和 migration；新模型不复制旧模型的 `extra="allow"` 策略，转换器输出旧模型时遵守旧合同。
+
+| 类型 | 设计 |
+|---|---|
+| `SourceKind` | `user_explicit`、`ai_inference`、`user_confirmed`、`generated`、`verification_result`、`auto_repair`。 |
+| `FieldProvenance` | `source_kind`、`source_path`、`confirmed`、`confirmed_at`、`confirmed_by`、`generation_request_id`。 |
+| `Constraint` | `constraint_id`、`text`、`scope`、`authoritative`、`provenance`。 |
+| `CharacterRef` | `character_id`、`provenance`。 |
+| `LocationDefinition` | `location_id`、`name`、`description`、`constraints`、`provenance`。 |
+| `PropDefinition` | `prop_id`、`name`、`owner_character_id?`、`constraints`、`provenance`。 |
+| `DialogueLineDraft` | `speaker: CharacterRef`、`text`、`provenance`。 |
+| `ShotState` | `description`、`character_states`、`prop_states`、`provenance`。 |
+| `GenerationUsage` | `prompt_tokens?`、`completion_tokens?`、`reasoning_tokens?`、`total_tokens?`；不存正文或密钥。 |
+| `GenerationStatus` | `pending`、`running`、`succeeded`、`failed`、`cancelled`。 |
+| `GenerationIssueSeverity` | `error`、`warning`、`info`。 |
+| `ArtifactType` | `creative_brief`、`story_bible`、`plot_outline`、`scene_plan`、`storyboard_draft`、`verification_report`。 |
+
+provenance 绑定到具体字段、约束、人物属性、世界观规则及每个镜头内容，而非仅模型顶层。采纳 AI 推断时追加新的 `user_confirmed` 来源记录并保留 `ai_inference`，禁止原地覆盖来源。
+
+### SceneDefinition
+
+`ScenePlan.scenes: list[SceneDefinition]`。`SceneDefinition` 必有：`scene_id`、`sequence`、`title`、`purpose`、`location_id`、`time_context`、`target_duration_s`、`characters`、`props`、`required_beats`、`required_events`、`forbidden_events`、`opening_state`、`ending_state`、`notes`、`provenance`。`scene_id` 唯一；`sequence` 唯一且从 1 连续；地点、人物、道具引用必须存在；`target_duration_s > 0`；每个 `required_beats` 引用既有 `PlotBeat.beat_id`。
+
+### StoryboardShot 与时间
+
+`StoryboardShot` 必有：`shot_id`、`scene_id`、`sequence`、`start_time_s`、`end_time_s`、`duration_s`、`location_id`、`characters`、`props`、`opening_state`、`action`、`performance`、`dialogue`、`sound`、`ending_state`、`camera`、`first_frame_prompt`、`video_prompt`、`negative_constraints`、`continuity_refs`、`required_events`、`forbidden_events`、`generation_segments`、`provenance`。
+
+`duration_s = end_time_s - start_time_s`。可由三个时间字段的任意两个确定性推导第三个，但持久化后的值不得矛盾。整个 storyboard 要验证：shot ID 唯一；sequence 唯一且连续；时间不重叠、不倒退、时长大于 0；人物、地点、道具引用存在；同一 Scene 的镜头顺序合理。总时长以验证器参数 `duration_tolerance_s = max(0.1, target_duration_s * 0.005)` 与 `CreativeBrief.target_duration_s` 比较，禁止硬编码在多处。
+
+### Phase 1 本地验证器边界
+
+只验证确定性问题，至少定义：`CREATIVE_IDEA_EMPTY`、`INVALID_TARGET_DURATION`、`DUPLICATE_CHARACTER_ID`、`DUPLICATE_LOCATION_ID`、`DUPLICATE_PROP_ID`、`DUPLICATE_BEAT_ID`、`DUPLICATE_SCENE_ID`、`DUPLICATE_SHOT_ID`、`DUPLICATE_SEQUENCE`、`UNKNOWN_CHARACTER_REF`、`UNKNOWN_LOCATION_REF`、`UNKNOWN_PROP_REF`、`UNKNOWN_BEAT_REF`、`INVALID_TIME_RANGE`、`SHOT_TIME_OVERLAP`、`DURATION_MISMATCH`、`SCENE_DURATION_MISMATCH`、`UNCONFIRMED_AUTHORITATIVE_FIELD`、`INVALID_PROVENANCE`、`INVALID_GENERATION_SETTINGS`。不得评价故事精彩度、主题深度、镜头艺术性、台词感染力或市场成功；它们只能是模型建议或人工判断。
+
+### v0.3.0 MVP 范围与非目标
+
+MVP 包含：用户想法、CreativeBrief、StoryBible、PlotOutline、ScenePlan、StoryboardDraft、生成后核验、局部镜头修复、项目保存及 Markdown/TXT/JSON 导出。暂不包含：完整长篇小说正文生成、章节级长篇续写、多人实时协作、云端同步、直接图像/视频生成、第三方自动发布、无限自动重写、无人工确认的全自动导演。可保留 `NarrativeDraft` 未来名称，但 Phase 1 不实现它。
+
+### Phase 1 精确范围
+
+仅未来新增：`story_generation/__init__.py`、`story_generation/models/__init__.py`、`story_generation/models/common.py`、`story_generation/models/brief.py`、`story_generation/models/bible.py`、`story_generation/models/outline.py`、`story_generation/models/scene.py`、`story_generation/models/storyboard.py`、`story_generation/models/generation.py`、`story_generation/validators/__init__.py`、`story_generation/validators/issues.py`、`story_generation/validators/brief.py`、`story_generation/validators/bible.py`、`story_generation/validators/outline.py`、`story_generation/validators/scene.py`、`story_generation/validators/storyboard.py`，以及 `tests/test_story_models.py`、`tests/test_story_validators.py`。Phase 1 不含 DeepSeek API、prompt、pipeline、converter、旧核验器接入、UI、保存、导出或打包。
