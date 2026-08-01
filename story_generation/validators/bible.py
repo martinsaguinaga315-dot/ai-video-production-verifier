@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from story_generation.models.bible import StoryBible
 
-from .issues import ValidationIssue, issue
+from .issues import ValidationIssue, issue, validate_provenance
 
 
 def _duplicates(values: list[str]) -> set[str]:
@@ -10,7 +10,7 @@ def _duplicates(values: list[str]) -> set[str]:
 
 
 def validate_story_bible(bible: StoryBible) -> list[ValidationIssue]:
-    issues: list[ValidationIssue] = []
+    issues = validate_provenance(bible)
     for character_id in sorted(_duplicates([item.character_id for item in bible.characters])):
         issues.append(issue("DUPLICATE_CHARACTER_ID", "characters", f"Duplicate character id: {character_id}"))
     for location_id in sorted(_duplicates([item.location_id for item in bible.world.locations])):

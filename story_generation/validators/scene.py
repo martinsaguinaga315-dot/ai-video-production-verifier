@@ -6,11 +6,11 @@ from story_generation.models.bible import StoryBible
 from story_generation.models.outline import PlotOutline
 from story_generation.models.scene import ScenePlan
 
-from .issues import ValidationIssue, issue
+from .issues import ValidationIssue, issue, validate_provenance
 
 
 def validate_scene_plan(plan: ScenePlan, bible: StoryBible, outline: PlotOutline) -> list[ValidationIssue]:
-    issues: list[ValidationIssue] = []
+    issues = validate_provenance(plan)
     scene_ids: set[str] = set()
     sequences: set[int] = set()
     character_ids = {item.character_id for item in bible.characters}

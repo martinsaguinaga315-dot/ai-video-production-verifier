@@ -7,14 +7,14 @@ from story_generation.models.brief import CreativeBrief
 from story_generation.models.scene import ScenePlan
 from story_generation.models.storyboard import StoryboardDraft
 
-from .issues import ValidationIssue, issue
+from .issues import ValidationIssue, issue, validate_provenance
 
 
 def validate_storyboard_draft(
     storyboard: StoryboardDraft, brief: CreativeBrief, bible: StoryBible, plan: ScenePlan,
     *, duration_tolerance_s: float | None = None,
 ) -> list[ValidationIssue]:
-    issues: list[ValidationIssue] = []
+    issues = validate_provenance(storyboard)
     shot_ids: set[str] = set()
     sequences: set[int] = set()
     scene_ids = {scene.scene_id for scene in plan.scenes}
@@ -31,7 +31,7 @@ def validate_storyboard_draft(
             issues.append(issue("DUPLICATE_SEQUENCE", f"{path}.sequence", f"Duplicate sequence: {shot.sequence}"))
         sequences.add(shot.sequence)
         if shot.scene_id not in scene_ids:
-            issues.append(issue("UNKNOWN_BEAT_REF", f"{path}.scene_id", f"Unknown scene id: {shot.scene_id}"))
+            issues.append(issue("UNKNOWN_SCENE_REF", f"{path}.scene_id", f"Unknown scene id: {shot.scene_id}"))
         if shot.location_id not in location_ids:
             issues.append(issue("UNKNOWN_LOCATION_REF", f"{path}.location_id", f"Unknown location id: {shot.location_id}"))
         if shot.end_time_s <= shot.start_time_s or shot.duration_s <= 0:
@@ -49,6 +49,10 @@ def validate_storyboard_draft(
     for previous, current in zip(ordered, ordered[1:]):
         if current.start_time_s < previous.end_time_s:
             issues.append(issue("SHOT_TIME_OVERLAP", "shots", f"Shots {previous.shot_id} and {current.shot_id} overlap."))
+    for scene in plan.scenes:
+        scene_duration = sum(shot.duration_s for shot in storyboard.shots if shot.scene_id == scene.scene_id)
+        if not isclose(scene_duration, scene.target_duration_s, rel_tol=0.0, abs_tol=0.1):
+            issues.append(issue("SCENE_DURATION_MISMATCH", f"scenes[{scene.scene_id}]", "Scene shots do not match its target duration."))
     tolerance = duration_tolerance_s if duration_tolerance_s is not None else max(0.1, brief.target_duration_s * 0.005)
     total = sum(shot.duration_s for shot in storyboard.shots)
     if not isclose(total, brief.target_duration_s, rel_tol=0.0, abs_tol=tolerance):
