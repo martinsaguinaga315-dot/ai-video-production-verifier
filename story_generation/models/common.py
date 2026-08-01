@@ -29,12 +29,19 @@ class FieldProvenance(StrictModel):
     prior_sources: list["FieldProvenance"] = Field(default_factory=list)
 
 
+class FieldProvenanceMap(StrictModel):
+    """Provenance histories keyed by a concrete field name or field path."""
+
+    fields: dict[str, list[FieldProvenance]] = Field(default_factory=dict)
+
+
 class Constraint(StrictModel):
     constraint_id: str
     text: str
     scope: str
     authoritative: bool = False
     provenance: FieldProvenance
+    field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
 
 
 class CharacterRef(StrictModel):
@@ -48,6 +55,7 @@ class LocationDefinition(StrictModel):
     description: str
     constraints: list[Constraint] = Field(default_factory=list)
     provenance: FieldProvenance
+    field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
 
 
 class PropDefinition(StrictModel):
@@ -56,12 +64,14 @@ class PropDefinition(StrictModel):
     owner_character_id: str | None = None
     constraints: list[Constraint] = Field(default_factory=list)
     provenance: FieldProvenance
+    field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
 
 
 class DialogueLineDraft(StrictModel):
     speaker: CharacterRef
     text: str
     provenance: FieldProvenance
+    field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
 
 
 class ShotState(StrictModel):
@@ -69,3 +79,4 @@ class ShotState(StrictModel):
     character_states: dict[str, str] = Field(default_factory=dict)
     prop_states: dict[str, str] = Field(default_factory=dict)
     provenance: FieldProvenance
+    field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from .common import Constraint, FieldProvenance, StrictModel
+from .common import Constraint, FieldProvenance, FieldProvenanceMap, StrictModel
 
 
 class CreativeBrief(StrictModel):
@@ -13,4 +13,4 @@ class CreativeBrief(StrictModel):
     tone: list[str] = Field(default_factory=list)
     constraints: list[Constraint] = Field(default_factory=list)
     provenance: FieldProvenance
-    field_provenance: dict[str, list[FieldProvenance]] = Field(default_factory=dict)
+    field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)

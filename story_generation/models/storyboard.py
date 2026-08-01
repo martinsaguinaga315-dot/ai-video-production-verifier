@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from .common import CharacterRef, DialogueLineDraft, FieldProvenance, ShotState, StrictModel
+from .common import CharacterRef, DialogueLineDraft, FieldProvenance, FieldProvenanceMap, ShotState, StrictModel
 
 
 class StoryboardShot(StrictModel):
@@ -30,11 +30,11 @@ class StoryboardShot(StrictModel):
     forbidden_events: list[str] = Field(default_factory=list)
     generation_segments: list[str] = Field(default_factory=list)
     provenance: FieldProvenance
-    field_provenance: dict[str, list[FieldProvenance]] = Field(default_factory=dict)
+    field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
 
 
 class StoryboardDraft(StrictModel):
     shots: list[StoryboardShot] = Field(default_factory=list)
     version: int
     provenance: FieldProvenance
-    field_provenance: dict[str, list[FieldProvenance]] = Field(default_factory=dict)
+    field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from .common import CharacterRef, FieldProvenance, ShotState, StrictModel
+from .common import CharacterRef, FieldProvenance, FieldProvenanceMap, ShotState, StrictModel
 
 
 class SceneDefinition(StrictModel):
@@ -22,11 +22,11 @@ class SceneDefinition(StrictModel):
     ending_state: ShotState
     notes: str = ""
     provenance: FieldProvenance
-    field_provenance: dict[str, list[FieldProvenance]] = Field(default_factory=dict)
+    field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
 
 
 class ScenePlan(StrictModel):
     scenes: list[SceneDefinition] = Field(default_factory=list)
     total_duration_s: float
     provenance: FieldProvenance
-    field_provenance: dict[str, list[FieldProvenance]] = Field(default_factory=dict)
+    field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)

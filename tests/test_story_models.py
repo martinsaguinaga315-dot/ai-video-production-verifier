@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from story_generation.models import (
     CreativeBrief,
     FieldProvenance,
+    FieldProvenanceMap,
     GenerationSettings,
     SourceKind,
     ThinkingMode,
@@ -31,6 +32,13 @@ def test_provenance_preserves_prior_ai_inference_on_confirmation() -> None:
         prior_sources=[inferred],
     )
     assert confirmed.prior_sources[0].source_kind is SourceKind.AI_INFERENCE
+
+
+def test_field_provenance_is_strict_and_retains_field_history() -> None:
+    history = FieldProvenanceMap(fields={"premise": [provenance()]})
+    assert history.fields["premise"][0].source_path == "idea"
+    with pytest.raises(ValidationError):
+        FieldProvenanceMap.model_validate({"fields": {}, "unknown": True})
 
 
 def test_generation_settings_accepts_explicit_thinking_configuration() -> None:

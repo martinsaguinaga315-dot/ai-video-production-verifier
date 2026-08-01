@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from .common import FieldProvenance, LocationDefinition, PropDefinition, StrictModel
+from .common import FieldProvenance, FieldProvenanceMap, LocationDefinition, PropDefinition, StrictModel
 
 
 class CharacterBible(StrictModel):
@@ -13,7 +13,7 @@ class CharacterBible(StrictModel):
     goals: list[str] = Field(default_factory=list)
     allowed_actions: list[str] = Field(default_factory=list)
     provenance: FieldProvenance
-    field_provenance: dict[str, list[FieldProvenance]] = Field(default_factory=dict)
+    field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
 
 
 class WorldBible(StrictModel):
@@ -21,7 +21,7 @@ class WorldBible(StrictModel):
     props: list[PropDefinition] = Field(default_factory=list)
     rules: list[str] = Field(default_factory=list)
     provenance: FieldProvenance
-    field_provenance: dict[str, list[FieldProvenance]] = Field(default_factory=dict)
+    field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
 
 
 class StoryBible(StrictModel):
@@ -31,4 +31,4 @@ class StoryBible(StrictModel):
     world: WorldBible
     canon_rules: list[str] = Field(default_factory=list)
     provenance: FieldProvenance
-    field_provenance: dict[str, list[FieldProvenance]] = Field(default_factory=dict)
+    field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)

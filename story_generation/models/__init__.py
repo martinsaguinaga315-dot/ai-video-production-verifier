@@ -6,6 +6,7 @@ from .common import (
     CharacterRef,
     Constraint,
     FieldProvenance,
+    FieldProvenanceMap,
     LocationDefinition,
     PropDefinition,
     SourceKind,
@@ -28,7 +29,7 @@ from .storyboard import StoryboardDraft, StoryboardShot
 
 __all__ = [
     "ArtifactType", "CharacterBible", "CharacterRef", "Constraint",
-    "CreativeBrief", "FieldProvenance", "GenerationIssue",
+    "CreativeBrief", "FieldProvenance", "FieldProvenanceMap", "GenerationIssue",
     "GenerationIssueSeverity", "GenerationMetadata", "GenerationRequest",
     "GenerationResult", "GenerationSettings", "GenerationStatus",
     "GenerationUsage", "LocationDefinition", "PlotBeat", "PlotOutline",
