@@ -15,7 +15,7 @@ from typing import Any, Callable, Iterator
 from pydantic import ValidationError
 
 from llm_audit import semantic_audit
-from models import DirectorOutput, ProjectFacts, VerificationReport
+from models import DirectorOutput, Issue, ProjectFacts, VerificationReport
 from rules import verify as verify_hard_rules
 
 
@@ -116,6 +116,37 @@ def _semantic_error_code(error: Exception) -> str:
     if "internalserver" in name:
         return "service_unavailable"
     return "semantic_failed"
+
+
+_RECOVERABLE_SEMANTIC_FAILURE_CODES = {
+    "api_key_invalid",
+    "connection_failed",
+    "timeout",
+    "rate_limited",
+    "service_unavailable",
+}
+
+_SEMANTIC_FAILURE_REASONS = {
+    "api_key_invalid": "API Key无效",
+    "connection_failed": "无法连接DeepSeek",
+    "timeout": "DeepSeek语义审计超时",
+    "rate_limited": "DeepSeek请求频率过高",
+    "service_unavailable": "DeepSeek服务暂时不可用",
+}
+
+
+def semantic_audit_not_executed_issue(code: str) -> Issue:
+    """Represent a recoverable provider failure without exposing provider data."""
+    reason = _SEMANTIC_FAILURE_REASONS[code]
+    return Issue(
+        rule_id="SEMANTIC_AUDIT_NOT_EXECUTED",
+        severity="warning",
+        title="DeepSeek语义审计未执行",
+        message=f"DeepSeek语义审计未执行：{reason}；本地硬规则结果仍有效。",
+        path="semantic_audit",
+        evidence=code,
+        suggestion="请检查API Key、网络或DeepSeek服务后重新执行语义审计。",
+    )
 
 
 @contextmanager
@@ -222,10 +253,11 @@ def run_verification_models(
             raise
         except Exception as exc:
             # Provider exceptions may include headers or response bodies.
-            raise SemanticVerificationError(
-                "DeepSeek语义审计失败。",
-                _semantic_error_code(exc),
-            ) from exc
+            code = _semantic_error_code(exc)
+            if code not in _RECOVERABLE_SEMANTIC_FAILURE_CODES:
+                raise SemanticVerificationError("DeepSeek语义审计失败。", code) from exc
+            semantic_issues = [semantic_audit_not_executed_issue(code)]
+            _notify(status_callback, "本地硬规则已完成；DeepSeek语义审计未执行")
 
     _notify(status_callback, "正在生成结果")
     return build_report(hard_report, semantic_issues)

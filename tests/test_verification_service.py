@@ -117,12 +117,77 @@ def test_provider_error_has_a_specific_safe_chinese_message(
         "semantic_audit",
         lambda *args, **kwargs: (_ for _ in ()).throw(AuthenticationError("secret")),
     )
-    with pytest.raises(SemanticVerificationError) as caught:
-        run_verification(
-            CLEAN / "facts.json",
-            CLEAN / "director_output.json",
-            semantic=True,
-            api_key="secret",
-        )
-    assert caught.value.code == "api_key_invalid"
-    assert friendly_error(caught.value) == "API Key无效。"
+    report = run_verification(
+        CLEAN / "facts.json",
+        CLEAN / "director_output.json",
+        semantic=True,
+        api_key="secret",
+    )
+    notice = next(issue for issue in report.issues if issue.rule_id == "SEMANTIC_AUDIT_NOT_EXECUTED")
+    assert "API Key无效" in notice.message
+
+
+@pytest.mark.parametrize(
+    ("error_type", "expected_code", "expected_reason"),
+    [
+        (ConnectionError, "connection_failed", "无法连接DeepSeek"),
+        (TimeoutError, "timeout", "DeepSeek语义审计超时"),
+    ],
+)
+def test_recoverable_semantic_failures_preserve_local_report(
+    monkeypatch: pytest.MonkeyPatch,
+    error_type: type[Exception],
+    expected_code: str,
+    expected_reason: str,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        verification_service,
+        "semantic_audit",
+        lambda *args, **kwargs: (_ for _ in ()).throw(error_type("secret-api-key")),
+    )
+    report = run_verification(
+        CLEAN / "facts.json", CLEAN / "director_output.json", semantic=True, api_key="secret-api-key"
+    )
+    notice = next(issue for issue in report.issues if issue.rule_id == "SEMANTIC_AUDIT_NOT_EXECUTED")
+    assert notice.severity == "warning"
+    assert expected_reason in notice.message
+    assert "本地硬规则结果仍有效" in notice.message
+    assert "secret-api-key" not in notice.message
+    assert notice.evidence == expected_code
+    output = tmp_path / "report.json"
+    verification_service.write_report(report, output)
+    assert "SEMANTIC_AUDIT_NOT_EXECUTED" in output.read_text(encoding="utf-8")
+
+
+def test_authentication_failure_preserves_local_report_without_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class AuthenticationError(Exception):
+        pass
+
+    monkeypatch.setattr(
+        verification_service,
+        "semantic_audit",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AuthenticationError("secret-api-key")),
+    )
+    report = run_verification(
+        CLEAN / "facts.json", CLEAN / "director_output.json", semantic=True, api_key="secret-api-key"
+    )
+    notice = next(issue for issue in report.issues if issue.rule_id == "SEMANTIC_AUDIT_NOT_EXECUTED")
+    assert "API Key无效" in notice.message
+    assert "secret-api-key" not in notice.message
+
+
+def test_semantic_failure_keeps_hard_rule_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        verification_service,
+        "semantic_audit",
+        lambda *args, **kwargs: (_ for _ in ()).throw(ConnectionError()),
+    )
+    report = run_verification(
+        ERROR_CASE / "facts.json", ERROR_CASE / "director_output.json", semantic=True, api_key="test-key"
+    )
+    assert report.passed is False
+    assert any(issue.rule_id == "UNKNOWN_CHARACTER" for issue in report.issues)
+    assert any(issue.rule_id == "SEMANTIC_AUDIT_NOT_EXECUTED" for issue in report.issues)
