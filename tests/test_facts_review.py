@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from creator_desktop.facts_review import apply_facts_edits
+from creator_desktop.facts_review import EMPTY_SHOTS_GUIDANCE, apply_facts_edits
 from creator_import.facts_extractor import extract_facts_from_text
 from tests.test_facts_extractor import MockClient, facts_payload
 
@@ -18,3 +18,9 @@ def test_facts_review_rejects_bad_dialogue_format() -> None:
     facts = extract_facts_from_text("文本", MockClient([__import__("json").dumps(facts_payload(), ensure_ascii=False)]))
     with pytest.raises(ValueError):
         apply_facts_edits(facts, {"title": "标题", "total_duration": "2", "character_ids": ["小雨"], "shots": [{"required_events": "", "forbidden_events": "", "dialogue": "没有说话人"}]})
+
+
+def test_empty_shots_guidance_requests_timing_without_inventing_shots() -> None:
+    for text in ("镜头编号", "总时长", "起止时间", "S01：0秒至5秒"):
+        assert text in EMPTY_SHOTS_GUIDANCE
+    assert "自动" not in EMPTY_SHOTS_GUIDANCE

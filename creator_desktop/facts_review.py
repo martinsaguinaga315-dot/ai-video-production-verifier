@@ -8,6 +8,13 @@ from pydantic import ValidationError
 from models import DialogueLine, ProjectFacts
 
 
+EMPTY_SHOTS_GUIDANCE = (
+    "未从“剧本或项目要求”中识别出镜头时间线。\n"
+    "请补充镜头编号、总时长和每个镜头的起止时间，例如：\n"
+    "总时长：5秒\n镜头数量：1\nS01：0秒至5秒。"
+)
+
+
 def _split_lines(text: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
@@ -77,6 +84,13 @@ class FactsReviewFrame(ctk.CTkFrame):
         self._entry("总时长（秒）", self.duration_var)
         for index, variable in enumerate(self.character_vars):
             self._entry(f"人物 {index + 1}", variable)
+        if self._facts.shot_count == 0 and not self._facts.shots:
+            ctk.CTkLabel(
+                self.body,
+                text=EMPTY_SHOTS_GUIDANCE,
+                justify="left",
+                wraplength=820,
+            ).pack(fill="x", padx=8, pady=12)
         for shot in self._facts.shots:
             frame = ctk.CTkFrame(self.body)
             frame.pack(fill="x", padx=8, pady=8)
