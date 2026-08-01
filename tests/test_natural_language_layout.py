@@ -20,5 +20,10 @@ def test_creator_input_panels_expand_before_footer() -> None:
 
 
 def test_creator_workflow_controls_and_text_remain_available() -> None:
-    for text in ("加载示例", "自动分析", "_on_analyze", "普通创作者模式"):
+    for text in ("加载示例", "自动分析", "_on_analyze", "普通创作者模式", "API设置", "api_status"):
+        assert text in SOURCE
+
+
+def test_creator_input_explains_required_shot_timing() -> None:
+    for text in ("镜头编号", "总时长", "每个镜头起止时间"):
         assert text in SOURCE

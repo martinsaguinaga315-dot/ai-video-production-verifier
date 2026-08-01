@@ -146,13 +146,15 @@ def test_main_api_status_refreshes_after_save_or_clear(monkeypatch) -> None:
         def set(self, value: str) -> None:
             self.value = value
 
-    fake_window = SimpleNamespace(api_status=Value())
+    fake_window = SimpleNamespace(api_status=Value(), creator_api_status=Value())
     monkeypatch.setattr("creator_desktop.main_window.has_saved_api_key", lambda: True)
     MainWindow._refresh_api_status(fake_window)
     assert fake_window.api_status.value == "API：已配置"
+    assert fake_window.creator_api_status.value == "API：已配置"
     monkeypatch.setattr("creator_desktop.main_window.has_saved_api_key", lambda: False)
     MainWindow._refresh_api_status(fake_window)
     assert fake_window.api_status.value == "API：未配置"
+    assert fake_window.creator_api_status.value == "API：未配置"
     assert main_api_status(True) == "API：已配置"
 
 
@@ -167,7 +169,93 @@ def test_key_does_not_appear_in_error_log(monkeypatch) -> None:
         _log=logger,
         status=SimpleNamespace(set=lambda value: None),
         start_button=SimpleNamespace(configure=lambda **kwargs: None),
+        summary=SimpleNamespace(set=lambda value: None),
+        export_button=SimpleNamespace(configure=lambda **kwargs: None),
+        results=SimpleNamespace(winfo_children=lambda: []),
     )
     monkeypatch.setattr("creator_desktop.main_window.messagebox.showerror", lambda *args, **kwargs: None)
     MainWindow._on_error(fake_window, RuntimeError("secret-api-key"))
     assert "secret-api-key" not in stream.getvalue()
+
+
+def test_new_professional_run_clears_previous_report_and_summary() -> None:
+    class Value:
+        def __init__(self, value: str = "") -> None:
+            self.value = value
+
+        def set(self, value: str) -> None:
+            self.value = value
+
+        def get(self) -> str:
+            return self.value
+
+    class Button:
+        def __init__(self) -> None:
+            self.state = "normal"
+
+        def configure(self, **kwargs) -> None:
+            self.state = kwargs.get("state", self.state)
+
+    class Results:
+        def winfo_children(self):
+            return []
+
+    class Controller:
+        def start(self, *args, **kwargs) -> bool:
+            return True
+
+    window = SimpleNamespace(
+        facts_path=Value("facts.json"),
+        output_path=Value("output.json"),
+        semantic_mode=Value("local"),
+        _controller=Controller(),
+        start_button=Button(),
+        export_button=Button(),
+        status=Value("核验完成"),
+        summary=Value("通过｜分数 100｜错误 0｜警告 0"),
+        results=Results(),
+        _report=object(),
+    )
+    MainWindow._start(window)
+    assert window._report is None
+    assert window.summary.value == "尚未执行核验"
+    assert window.status.value == "正在读取文件"
+    assert window.export_button.state == "disabled"
+    assert window.start_button.state == "disabled"
+
+
+def test_professional_failure_clears_previous_result(monkeypatch) -> None:
+    class Value:
+        def __init__(self, value: str = "") -> None:
+            self.value = value
+
+        def set(self, value: str) -> None:
+            self.value = value
+
+    class Button:
+        def __init__(self) -> None:
+            self.state = "normal"
+
+        def configure(self, **kwargs) -> None:
+            self.state = kwargs.get("state", self.state)
+
+    class Results:
+        def winfo_children(self):
+            return []
+
+    window = SimpleNamespace(
+        _log=logging.getLogger("test_failure_state"),
+        status=Value("核验完成"),
+        summary=Value("通过｜分数 100｜错误 0｜警告 0"),
+        results=Results(),
+        export_button=Button(),
+        start_button=Button(),
+        _report=object(),
+    )
+    monkeypatch.setattr("creator_desktop.main_window.messagebox.showerror", lambda *args, **kwargs: None)
+    MainWindow._on_error(window, RuntimeError("failure"))
+    assert window._report is None
+    assert window.summary.value == "尚未执行核验"
+    assert window.status.value == "核验失败"
+    assert window.export_button.state == "disabled"
+    assert window.start_button.state == "normal"

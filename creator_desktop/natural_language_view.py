@@ -9,14 +9,19 @@ from creator_import.file_reader import read_text_file
 
 
 class NaturalLanguageView(ctk.CTkFrame):
-    def __init__(self, master, on_analyze) -> None:
+    def __init__(self, master, on_analyze, on_open_api_settings, api_status) -> None:
         super().__init__(master)
         self._on_analyze = on_analyze
         self.grid_columnconfigure((0, 1), weight=1)
         self.grid_rowconfigure(2, weight=1)
-        ctk.CTkLabel(self, text="普通创作者模式", font=ctk.CTkFont(size=22, weight="bold")).grid(row=0, column=0, columnspan=2, padx=20, pady=(16, 2), sticky="w")
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.grid(row=0, column=0, columnspan=2, padx=20, pady=(16, 2), sticky="ew")
+        header.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(header, text="普通创作者模式", font=ctk.CTkFont(size=22, weight="bold")).grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(header, textvariable=api_status).grid(row=0, column=1, padx=(12, 8), sticky="e")
+        ctk.CTkButton(header, text="API设置", width=82, command=on_open_api_settings).grid(row=0, column=2, sticky="e")
         ctk.CTkLabel(self, text="自然语言结构化和语义审计会将相关文本发送到用户自行配置的DeepSeek接口。软件不内置API Key，不提供遥测上传。", wraplength=900, justify="left").grid(row=1, column=0, columnspan=2, padx=20, pady=(0, 8), sticky="w")
-        self.script = self._input_panel(0, "剧本或项目要求", "粘贴剧本、人物设定、时长要求、固定台词、禁止项等内容。")
+        self.script = self._input_panel(0, "剧本或项目要求", "请包含镜头编号、总时长和每个镜头起止时间，以及人物、固定台词、禁止项等内容。")
         self.director = self._input_panel(1, "导演方案或分镜方案", "粘贴分镜方案、导演输出、镜头设计、动作路径或视频提示词。")
         self.status = ctk.StringVar(value="请粘贴或导入两份文本。")
         footer = ctk.CTkFrame(self, fg_color="transparent")

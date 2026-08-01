@@ -51,6 +51,7 @@ class MainWindow(ctk.CTk):
         self.facts_path, self.output_path = ctk.StringVar(), ctk.StringVar()
         self.semantic_mode, self.status, self.summary = ctk.StringVar(value="local"), ctk.StringVar(value="请选择facts.json和director_output.json。"), ctk.StringVar(value="尚未执行核验")
         self.api_status = ctk.StringVar(value="API：未配置")
+        self.creator_api_status = ctk.StringVar(value="API：未配置")
         self.protocol("WM_DELETE_WINDOW", self._close)
         self._build()
         self._refresh_api_status()
@@ -69,7 +70,12 @@ class MainWindow(ctk.CTk):
         self.professional_host.grid(row=2, column=0, padx=16, pady=4, sticky="nsew")
         self.creator_host.grid_rowconfigure(0, weight=1); self.creator_host.grid_columnconfigure(0, weight=1)
         self.professional_host.grid_rowconfigure(4, weight=1); self.professional_host.grid_columnconfigure(0, weight=1)
-        self.creator_view = NaturalLanguageView(self.creator_host, self._start_creator_analysis)
+        self.creator_view = NaturalLanguageView(
+            self.creator_host,
+            self._start_creator_analysis,
+            self._open_api_settings,
+            self.creator_api_status,
+        )
         self.creator_view.grid(row=0, column=0, sticky="nsew")
         self._build_professional()
         self._switch_mode("普通创作者模式")
@@ -123,7 +129,9 @@ class MainWindow(ctk.CTk):
     def _refresh_api_status(self) -> None:
         try: configured = has_saved_api_key()
         except CredentialError: configured = False
-        self.api_status.set(main_api_status(configured))
+        status = main_api_status(configured)
+        self.api_status.set(status)
+        self.creator_api_status.set(status)
 
     def _offer_first_run_settings(self) -> None:
         try: missing = not has_saved_api_key()
@@ -141,7 +149,8 @@ class MainWindow(ctk.CTk):
             if semantic_mode_requires_configuration(bool(api_key)):
                 self._handle_missing_api_key(); return
         if self._controller.start(facts, output, semantic=semantic, api_key=api_key):
-            self.start_button.configure(state="disabled"); self.export_button.configure(state="disabled"); self.status.set("正在读取文件"); self._clear_results()
+            MainWindow._reset_run_state(self)
+            self.start_button.configure(state="disabled"); self.status.set("正在读取文件")
 
     def _handle_missing_api_key(self) -> None:
         choice = messagebox.askyesnocancel("尚未配置DeepSeek API Key", "尚未配置DeepSeek API Key。\n请先打开“API设置”完成配置，或切换到“仅本地硬规则”。", parent=self)
@@ -234,12 +243,25 @@ class MainWindow(ctk.CTk):
         return "自动结构化失败，请返回修改原文后重试。"
 
     def _on_complete(self, report: VerificationReport) -> None:
-        self._report = report; self.status.set("核验完成")
+        self._report = report
+        semantic_unavailable = any(issue.rule_id == "SEMANTIC_AUDIT_NOT_EXECUTED" for issue in report.issues)
+        self.status.set("本地硬规则已完成；DeepSeek语义审计未执行" if semantic_unavailable else "核验完成")
         self.summary.set(f"{'通过' if report.passed else '未通过'}｜分数 {report.score}｜错误 {report.errors}｜警告 {report.warnings}")
         self._show_issues(report); self.start_button.configure(state="normal"); self.export_button.configure(state="normal")
 
     def _on_error(self, error: Exception) -> None:
-        self._log.warning("verification failed: %s", type(error).__name__); self.status.set("核验失败"); self.start_button.configure(state="normal"); messagebox.showerror("核验失败", friendly_error(error), parent=self)
+        self._log.warning("verification failed: %s", type(error).__name__)
+        MainWindow._reset_run_state(self)
+        self.status.set("核验失败")
+        self.start_button.configure(state="normal")
+        messagebox.showerror("核验失败", friendly_error(error), parent=self)
+
+    def _reset_run_state(self) -> None:
+        """Clear all result state so an earlier run can never be mistaken for this one."""
+        self._report = None
+        self.summary.set("尚未执行核验")
+        MainWindow._clear_results(self)
+        self.export_button.configure(state="disabled")
 
     def _clear_results(self) -> None:
         for widget in self.results.winfo_children(): widget.destroy()
