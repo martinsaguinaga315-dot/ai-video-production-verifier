@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import CharacterRef, FieldProvenance, FieldProvenanceMap, ShotState, StrictModel
 
@@ -24,6 +24,11 @@ class SceneDefinition(StrictModel):
     provenance: FieldProvenance
     field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
 
+    @model_validator(mode="after")
+    def _duration_positive(self) -> "SceneDefinition":
+        if self.target_duration_s <= 0: raise ValueError("target_duration_s must be positive")
+        return self
+
 
 class ScenePlan(StrictModel):
     scene_plan_id: str
@@ -32,3 +37,8 @@ class ScenePlan(StrictModel):
     target_duration_s: float
     provenance: FieldProvenance
     field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
+
+    @model_validator(mode="after")
+    def _duration_positive(self) -> "ScenePlan":
+        if self.target_duration_s <= 0: raise ValueError("target_duration_s must be positive")
+        return self

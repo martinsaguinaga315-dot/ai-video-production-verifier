@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import Constraint, FieldProvenance, FieldProvenanceMap, StrictModel
 
@@ -24,3 +24,8 @@ class CreativeBrief(StrictModel):
     constraints: list[Constraint] = Field(default_factory=list)
     provenance: FieldProvenance
     field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
+
+    @model_validator(mode="after")
+    def _duration_positive(self) -> "CreativeBrief":
+        if self.target_duration_s <= 0: raise ValueError("target_duration_s must be positive")
+        return self

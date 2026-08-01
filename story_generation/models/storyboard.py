@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import CharacterRef, DialogueLineDraft, FieldProvenance, FieldProvenanceMap, ShotState, StrictModel
 
@@ -32,6 +32,12 @@ class StoryboardShot(StrictModel):
     provenance: FieldProvenance
     field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
 
+    @model_validator(mode="after")
+    def _validate_times(self) -> "StoryboardShot":
+        if self.start_time_s < 0 or self.end_time_s < 0 or self.duration_s <= 0:
+            raise ValueError("shot times must be non-negative and duration positive")
+        return self
+
 
 class StoryboardDraft(StrictModel):
     storyboard_id: str
@@ -41,3 +47,9 @@ class StoryboardDraft(StrictModel):
     version: int
     provenance: FieldProvenance
     field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
+
+    @model_validator(mode="after")
+    def _validate_version(self) -> "StoryboardDraft":
+        if self.version < 1 or self.target_duration_s <= 0:
+            raise ValueError("version must be positive")
+        return self

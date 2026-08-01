@@ -4,7 +4,7 @@ from datetime import datetime
 from math import isfinite
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, AliasChoices, model_validator
 
 
 class StrictModel(BaseModel):
@@ -65,11 +65,18 @@ class FieldProvenanceMap(StrictModel):
 
 class Constraint(StrictModel):
     constraint_id: str
-    text: str
+    description: str = Field(validation_alias=AliasChoices("description", "text"))
     scope: str
     authoritative: bool = False
     provenance: FieldProvenance
     field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_conflicting_aliases(cls, value: object) -> object:
+        if isinstance(value, dict) and "text" in value and "description" in value and value["text"] != value["description"]:
+            raise ValueError("text and description conflict")
+        return value
 
 
 class CharacterRef(StrictModel):

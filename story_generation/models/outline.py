@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import CharacterRef, FieldProvenance, FieldProvenanceMap, StrictModel
 
@@ -26,3 +26,8 @@ class PlotOutline(StrictModel):
     target_duration_s: float
     provenance: FieldProvenance
     field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
+
+    @model_validator(mode="after")
+    def _duration_positive(self) -> "PlotOutline":
+        if self.target_duration_s <= 0: raise ValueError("target_duration_s must be positive")
+        return self

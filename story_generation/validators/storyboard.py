@@ -51,7 +51,8 @@ def validate_storyboard_draft(
             issues.append(issue(GenerationIssueCode.SHOT_TIME_OVERLAP, "shots", f"Shots {previous.shot_id} and {current.shot_id} overlap."))
     for scene in plan.scenes:
         scene_duration = sum(shot.duration_s for shot in storyboard.shots if shot.scene_id == scene.scene_id)
-        if not isclose(scene_duration, scene.target_duration_s, rel_tol=0.0, abs_tol=0.1):
+        scene_tolerance = duration_tolerance_s if duration_tolerance_s is not None else calculate_duration_tolerance(scene.target_duration_s)
+        if not isclose(scene_duration, scene.target_duration_s, rel_tol=0.0, abs_tol=scene_tolerance):
             issues.append(issue(GenerationIssueCode.SCENE_DURATION_MISMATCH, f"scenes[{scene.scene_id}]", "Scene shots do not match its target duration."))
     tolerance = duration_tolerance_s if duration_tolerance_s is not None else calculate_duration_tolerance(storyboard.target_duration_s)
     total = sum(shot.duration_s for shot in storyboard.shots)
@@ -60,6 +61,12 @@ def validate_storyboard_draft(
     shot_lookup = {shot.shot_id for shot in storyboard.shots}
     for index, shot in enumerate(storyboard.shots):
         for ref in shot.continuity_refs:
+            if ref == shot.shot_id:
+                issues.append(issue(GenerationIssueCode.SELF_SHOT_REFERENCE, f"shots[{index}].continuity_refs", "Shot cannot reference itself.", [ref]))
             if ref not in shot_lookup:
                 issues.append(issue(GenerationIssueCode.UNKNOWN_SHOT_REF, f"shots[{index}].continuity_refs", "Unknown shot.", [ref]))
+    for scene_id in scene_ids:
+        ordered_scene = sorted((shot for shot in storyboard.shots if shot.scene_id == scene_id), key=lambda shot: shot.sequence)
+        if any(current.start_time_s < previous.start_time_s - time_epsilon_s for previous, current in zip(ordered_scene, ordered_scene[1:])):
+            issues.append(issue(GenerationIssueCode.INVALID_SHOT_ORDER, f"scenes[{scene_id}]", "Scene shot times regress by sequence."))
     return stable_sort_issues(issues)

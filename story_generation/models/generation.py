@@ -48,6 +48,7 @@ class GenerationIssueCode(StrEnum):
     DUPLICATE_SCENE_ID = "DUPLICATE_SCENE_ID"
     DUPLICATE_SHOT_ID = "DUPLICATE_SHOT_ID"
     DUPLICATE_SEQUENCE = "DUPLICATE_SEQUENCE"
+    DUPLICATE_CONSTRAINT_ID = "DUPLICATE_CONSTRAINT_ID"
     NONCONTIGUOUS_SEQUENCE = "NONCONTIGUOUS_SEQUENCE"
     UNKNOWN_CHARACTER_REF = "UNKNOWN_CHARACTER_REF"
     UNKNOWN_LOCATION_REF = "UNKNOWN_LOCATION_REF"
@@ -62,6 +63,8 @@ class GenerationIssueCode(StrEnum):
     UNCONFIRMED_AUTHORITATIVE_FIELD = "UNCONFIRMED_AUTHORITATIVE_FIELD"
     INVALID_PROVENANCE = "INVALID_PROVENANCE"
     INVALID_GENERATION_SETTINGS = "INVALID_GENERATION_SETTINGS"
+    INVALID_SHOT_ORDER = "INVALID_SHOT_ORDER"
+    SELF_SHOT_REFERENCE = "SELF_SHOT_REFERENCE"
 
 
 class GenerationUsage(StrictModel):
@@ -70,6 +73,12 @@ class GenerationUsage(StrictModel):
     reasoning_tokens: int | None = None
     total_tokens: int | None = None
     cached_tokens: int | None = None
+
+    @model_validator(mode="after")
+    def _validate_tokens(self) -> "GenerationUsage":
+        if any(value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0) for value in self.__dict__.values()):
+            raise ValueError("token counts must be non-negative integers")
+        return self
 
 
 class GenerationRequest(StrictModel):
@@ -80,6 +89,12 @@ class GenerationRequest(StrictModel):
     settings: "GenerationSettings"
     created_at: datetime
     parent_request_id: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_created_at(self) -> "GenerationRequest":
+        if self.created_at.tzinfo is None:
+            raise ValueError("created_at must include a timezone")
+        return self
 
 
 class GenerationSettings(StrictModel):
@@ -115,6 +130,17 @@ class GenerationMetadata(StrictModel):
     completed_at: datetime | None = None
     repair_count: int = 0
     parent_request_id: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_times(self) -> "GenerationMetadata":
+        for value in (self.started_at, self.completed_at):
+            if value is not None and value.tzinfo is None:
+                raise ValueError("metadata timestamps must include a timezone")
+        if self.started_at and self.completed_at and self.completed_at < self.started_at:
+            raise ValueError("completed_at must not precede started_at")
+        if self.repair_count < 0:
+            raise ValueError("repair_count must be non-negative")
+        return self
 
 
 class GenerationIssue(StrictModel):

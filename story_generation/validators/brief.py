@@ -19,10 +19,10 @@ def validate_creative_brief(brief: CreativeBrief) -> list[GenerationIssue]:
 
 def validate_generation_settings(settings: GenerationSettings) -> list[GenerationIssue]:
     issues: list[GenerationIssue] = []
-    if not settings.model or settings.max_tokens <= 0 or settings.timeout_s <= 0:
-        issues.append(issue(GenerationIssueCode.INVALID_GENERATION_SETTINGS, "settings", "Model, max_tokens, and timeout_s must be valid."))
+    for path, invalid in (("model", not settings.model), ("quality_mode", not settings.quality_mode), ("max_tokens", settings.max_tokens <= 0), ("timeout_s", settings.timeout_s <= 0), ("max_retries", not 0 <= settings.max_retries <= 3)):
+        if invalid: issues.append(issue(GenerationIssueCode.INVALID_GENERATION_SETTINGS, path, "Invalid generation setting."))
     if settings.thinking_mode is ThinkingMode.HIGH and settings.temperature is not None:
         issues.append(issue(GenerationIssueCode.INVALID_GENERATION_SETTINGS, "temperature", "Thinking mode requires temperature=None."))
-    elif settings.temperature is not None and not 0 <= settings.temperature <= 2:
+    elif settings.temperature is not None and (not __import__("math").isfinite(settings.temperature) or not 0 <= settings.temperature <= 2):
         issues.append(issue(GenerationIssueCode.INVALID_GENERATION_SETTINGS, "temperature", "Temperature must be between 0 and 2."))
     return stable_sort_issues(issues)
