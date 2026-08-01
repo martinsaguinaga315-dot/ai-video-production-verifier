@@ -26,7 +26,9 @@ class SceneDefinition(StrictModel):
 
 
 class ScenePlan(StrictModel):
+    scene_plan_id: str
+    outline_id: str
     scenes: list[SceneDefinition] = Field(default_factory=list)
-    total_duration_s: float
+    target_duration_s: float
     provenance: FieldProvenance
     field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)

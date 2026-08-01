@@ -34,7 +34,10 @@ class StoryboardShot(StrictModel):
 
 
 class StoryboardDraft(StrictModel):
+    storyboard_id: str
+    scene_plan_id: str
     shots: list[StoryboardShot] = Field(default_factory=list)
+    target_duration_s: float
     version: int
     provenance: FieldProvenance
     field_provenance: FieldProvenanceMap = Field(default_factory=FieldProvenanceMap)
