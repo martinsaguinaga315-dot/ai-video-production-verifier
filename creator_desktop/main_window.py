@@ -1,0 +1,283 @@
+from __future__ import annotations
+
+import json
+import logging
+import queue
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+from tkinter import filedialog, messagebox
+
+import customtkinter as ctk
+
+from creator_desktop.analysis_controller import AnalysisController
+from creator_desktop.api_key_dialog import ApiKeyDialog
+from creator_desktop.api_key_state import main_api_status, semantic_mode_requires_configuration
+from creator_desktop.app_paths import log_dir
+from creator_desktop.app_paths import is_smoke_test, resource_path
+from app_version import APP_NAME
+from creator_desktop.creator_result import CreatorResultFrame
+from creator_desktop.credentials import CredentialError, has_saved_api_key, load_api_key
+from creator_desktop.director_review import DirectorReviewFrame
+from creator_desktop.facts_review import FactsReviewFrame, show_json_dialog
+from creator_desktop.natural_language_view import NaturalLanguageView
+from creator_desktop.ui_errors import friendly_error
+from creator_desktop.verification_controller import VerificationController
+from creator_import.extraction_errors import CreatorImportError, LLMRequestError
+from creator_import.llm_client import DeepSeekClient
+from models import DirectorOutput, ProjectFacts, VerificationReport
+from verification_service import ReportWriteError, write_report
+
+
+def _logger() -> logging.Logger:
+    logger = logging.getLogger("creator_desktop")
+    if not logger.handlers:
+        handler = RotatingFileHandler(log_dir() / "desktop.log", maxBytes=512_000, backupCount=3, encoding="utf-8")
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+    return logger
+
+
+class MainWindow(ctk.CTk):
+    def __init__(self) -> None:
+        super().__init__()
+        self.title(APP_NAME)
+        self.geometry("1080x760")
+        self.minsize(920, 650)
+        self._log, self._controller, self._analysis = _logger(), VerificationController(), AnalysisController()
+        self._report: VerificationReport | None = None
+        self._creator_facts: ProjectFacts | None = None
+        self._creator_output: DirectorOutput | None = None
+        self.facts_path, self.output_path = ctk.StringVar(), ctk.StringVar()
+        self.semantic_mode, self.status, self.summary = ctk.StringVar(value="local"), ctk.StringVar(value="请选择facts.json和director_output.json。"), ctk.StringVar(value="尚未执行核验")
+        self.api_status = ctk.StringVar(value="API：未配置")
+        self.creator_api_status = ctk.StringVar(value="API：未配置")
+        self.protocol("WM_DELETE_WINDOW", self._close)
+        self._build()
+        self._refresh_api_status()
+        self.after(100, self._poll_events)
+        if not is_smoke_test():
+            self.after(150, self._offer_first_run_settings)
+
+    def _build(self) -> None:
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(2, weight=1)
+        ctk.CTkLabel(self, text="AI视频制作核验器", font=ctk.CTkFont(size=24, weight="bold")).grid(row=0, column=0, padx=24, pady=(16, 4), sticky="w")
+        self.mode = ctk.StringVar(value="普通创作者模式")
+        ctk.CTkSegmentedButton(self, values=["普通创作者模式", "专业JSON模式"], variable=self.mode, command=self._switch_mode).grid(row=1, column=0, padx=24, pady=6, sticky="w")
+        self.creator_host, self.professional_host = ctk.CTkFrame(self), ctk.CTkFrame(self)
+        self.creator_host.grid(row=2, column=0, padx=16, pady=4, sticky="nsew")
+        self.professional_host.grid(row=2, column=0, padx=16, pady=4, sticky="nsew")
+        self.creator_host.grid_rowconfigure(0, weight=1); self.creator_host.grid_columnconfigure(0, weight=1)
+        self.professional_host.grid_rowconfigure(4, weight=1); self.professional_host.grid_columnconfigure(0, weight=1)
+        self.creator_view = NaturalLanguageView(
+            self.creator_host,
+            self._start_creator_analysis,
+            self._open_api_settings,
+            self.creator_api_status,
+        )
+        self.creator_view.grid(row=0, column=0, sticky="nsew")
+        self._build_professional()
+        self._switch_mode("普通创作者模式")
+
+    def _build_professional(self) -> None:
+        host = self.professional_host
+        files = ctk.CTkFrame(host); files.grid(row=0, column=0, padx=12, pady=8, sticky="ew"); files.grid_columnconfigure(1, weight=1)
+        self._path_row(files, 0, "facts.json", self.facts_path, self._choose_facts)
+        self._path_row(files, 1, "director_output.json", self.output_path, self._choose_output)
+        controls = ctk.CTkFrame(host); controls.grid(row=1, column=0, padx=12, pady=8, sticky="ew")
+        ctk.CTkRadioButton(controls, text="仅本地硬规则", variable=self.semantic_mode, value="local").pack(side="left", padx=12, pady=10)
+        ctk.CTkRadioButton(controls, text="硬规则 + DeepSeek语义审计", variable=self.semantic_mode, value="semantic").pack(side="left", padx=8)
+        self.start_button = ctk.CTkButton(controls, text="开始核验", command=self._start); self.start_button.pack(side="right", padx=12)
+        ctk.CTkButton(controls, text="API设置", command=self._open_api_settings).pack(side="right", padx=6)
+        ctk.CTkLabel(controls, textvariable=self.api_status).pack(side="right", padx=8)
+        ctk.CTkButton(controls, text="加载错误示例", command=lambda: self._load_example("unknown_character_error")).pack(side="right", padx=6)
+        ctk.CTkButton(controls, text="加载正常示例", command=lambda: self._load_example("clean")).pack(side="right", padx=6)
+        info = ctk.CTkFrame(host); info.grid(row=2, column=0, padx=12, pady=8, sticky="ew")
+        ctk.CTkLabel(info, textvariable=self.status).pack(side="left", padx=12, pady=10)
+        ctk.CTkLabel(info, textvariable=self.summary, font=ctk.CTkFont(weight="bold")).pack(side="right", padx=12)
+        self.results = ctk.CTkScrollableFrame(host, label_text="问题列表"); self.results.grid(row=4, column=0, padx=12, pady=8, sticky="nsew")
+        self.export_button = ctk.CTkButton(host, text="导出JSON报告", command=self._export, state="disabled"); self.export_button.grid(row=5, column=0, padx=12, pady=8, sticky="e")
+
+    def _path_row(self, parent, row, label, variable, command) -> None:
+        ctk.CTkLabel(parent, text=label, width=150, anchor="w").grid(row=row, column=0, padx=12, pady=8)
+        ctk.CTkEntry(parent, textvariable=variable).grid(row=row, column=1, padx=8, pady=8, sticky="ew")
+        ctk.CTkButton(parent, text="选择文件", width=90, command=command).grid(row=row, column=2, padx=4, pady=8)
+        ctk.CTkButton(parent, text="清除", width=60, command=lambda: variable.set("")).grid(row=row, column=3, padx=(0, 12), pady=8)
+
+    def _switch_mode(self, value: str) -> None:
+        if value == "普通创作者模式":
+            self.professional_host.grid_remove(); self.creator_host.grid()
+        else:
+            self.creator_host.grid_remove(); self.professional_host.grid()
+
+    def _choose_facts(self) -> None:
+        path = filedialog.askopenfilename(filetypes=[("JSON 文件", "*.json")])
+        if path: self.facts_path.set(path)
+
+    def _choose_output(self) -> None:
+        path = filedialog.askopenfilename(filetypes=[("JSON 文件", "*.json")])
+        if path: self.output_path.set(path)
+
+    def _load_example(self, name: str) -> None:
+        root = resource_path("examples", name)
+        self.facts_path.set(str(root / "facts.json")); self.output_path.set(str(root / "director_output.json")); self.status.set(f"已加载{name}示例。")
+
+    def _open_api_settings(self) -> None:
+        ApiKeyDialog(self, on_changed=self._refresh_api_status)
+
+    def _refresh_api_status(self) -> None:
+        try: configured = has_saved_api_key()
+        except CredentialError: configured = False
+        status = main_api_status(configured)
+        self.api_status.set(status)
+        self.creator_api_status.set(status)
+
+    def _offer_first_run_settings(self) -> None:
+        try: missing = not has_saved_api_key()
+        except CredentialError: missing = False
+        if missing: self._open_api_settings()
+
+    def _start(self) -> None:
+        facts, output = self.facts_path.get().strip(), self.output_path.get().strip()
+        if not facts or not output:
+            messagebox.showwarning("缺少文件", "请选择facts.json和director_output.json。", parent=self); return
+        semantic, api_key = self.semantic_mode.get() == "semantic", None
+        if semantic:
+            try: api_key = load_api_key()
+            except CredentialError: messagebox.showerror("API Key", "无法读取已保存的API Key。", parent=self); return
+            if semantic_mode_requires_configuration(bool(api_key)):
+                self._handle_missing_api_key(); return
+        if self._controller.start(facts, output, semantic=semantic, api_key=api_key):
+            MainWindow._reset_run_state(self)
+            self.start_button.configure(state="disabled"); self.status.set("正在读取文件")
+
+    def _handle_missing_api_key(self) -> None:
+        choice = messagebox.askyesnocancel("尚未配置DeepSeek API Key", "尚未配置DeepSeek API Key。\n请先打开“API设置”完成配置，或切换到“仅本地硬规则”。", parent=self)
+        if choice is True: self._open_api_settings()
+        elif choice is False: self.semantic_mode.set("local"); self.status.set("已切换到仅本地硬规则模式。")
+
+    def _start_creator_analysis(self) -> None:
+        script, director = self.creator_view.texts()
+        if not script or not director:
+            messagebox.showwarning("缺少文本", "请同时提供剧本或项目要求，以及导演方案或分镜方案。", parent=self); return
+        try: client = DeepSeekClient()
+        except LLMRequestError:
+            messagebox.showwarning("需要API Key", "自然语言解析需要DeepSeek API Key。\n请先完成API设置，或切换到专业JSON模式使用本地硬规则。", parent=self); return
+        self._creator_script, self._creator_director, self._creator_client = script, director, client
+        if self._analysis.start_facts(script, client): self.creator_view.set_busy(True, "正在读取剧本")
+
+    def _show_creator(self, widget) -> None:
+        for child in self.creator_host.winfo_children(): child.grid_remove()
+        widget.grid(row=0, column=0, sticky="nsew")
+
+    def _show_facts_review(self, facts: ProjectFacts) -> None:
+        self._creator_facts = facts
+        review = FactsReviewFrame(self.creator_host, facts, self._confirm_facts, self._return_to_creator, self._retry_facts, lambda: show_json_dialog(self, facts))
+        self._show_creator(review)
+
+    def _confirm_facts(self, facts: ProjectFacts) -> None:
+        self._creator_facts = facts
+        if self._analysis.start_director(self._creator_director, facts, self._creator_client):
+            self.creator_view.set_busy(True, "正在读取导演方案")
+
+    def _retry_facts(self) -> None:
+        if self._analysis.start_facts(self._creator_script, self._creator_client): self.creator_view.set_busy(True, "正在提取项目事实")
+
+    def _return_to_creator(self) -> None:
+        self.creator_view.set_busy(False); self._show_creator(self.creator_view)
+
+    def _show_director_review(self, output: DirectorOutput) -> None:
+        self._creator_output = output
+        self._show_creator(DirectorReviewFrame(self.creator_host, output, self._creator_verify, self._return_to_creator, self._retry_director))
+
+    def _retry_director(self) -> None:
+        if self._analysis.start_director(self._creator_director, self._creator_facts, self._creator_client): self.creator_view.set_busy(True, "正在解析导演方案")
+
+    def _creator_verify(self, semantic: bool) -> None:
+        api_key = None
+        if semantic:
+            try: api_key = load_api_key()
+            except CredentialError: api_key = None
+            if not api_key: self._handle_missing_api_key(); return
+        if self._analysis.start_verification(self._creator_facts, self._creator_output, semantic=semantic, api_key=api_key): self.creator_view.set_busy(True, "正在执行本地硬规则")
+
+    def _show_creator_result(self, report: VerificationReport) -> None:
+        self._show_creator(CreatorResultFrame(self.creator_host, report, lambda: self._export_creator(report, "report"), lambda: self._export_creator(self._creator_facts, "facts"), lambda: self._export_creator(self._creator_output, "output"), self._return_to_creator))
+
+    def _export_creator(self, value, kind: str) -> None:
+        path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON 文件", "*.json")])
+        if not path: return
+        try:
+            if kind == "report": write_report(value, path)
+            else: Path(path).write_text(json.dumps(value.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except (ReportWriteError, OSError): messagebox.showerror("导出失败", "无法写入文件，请检查保存位置和权限。", parent=self)
+
+    def _poll_events(self) -> None:
+        self._poll_professional_events(); self._poll_creator_events()
+        if self.winfo_exists(): self.after(100, self._poll_events)
+
+    def _poll_professional_events(self) -> None:
+        try:
+            while True:
+                kind, payload = self._controller.events.get_nowait()
+                if kind == "status": self.status.set(str(payload))
+                elif kind == "complete": self._on_complete(payload)
+                else: self._on_error(payload)
+        except queue.Empty: pass
+
+    def _poll_creator_events(self) -> None:
+        try:
+            while True:
+                kind, payload = self._analysis.events.get_nowait()
+                if kind == "status": self.creator_view.set_busy(True, str(payload))
+                elif kind == "facts_ready": self.creator_view.set_busy(False); self._show_facts_review(payload)
+                elif kind == "director_ready": self.creator_view.set_busy(False); self._show_director_review(payload)
+                elif kind == "verification_complete": self.creator_view.set_busy(False); self._show_creator_result(payload)
+                elif kind == "error": self.creator_view.set_busy(False); self._return_to_creator(); messagebox.showerror("自动结构化失败", self._creator_error_text(payload), parent=self)
+        except queue.Empty: pass
+
+    def _creator_error_text(self, error: Exception) -> str:
+        if isinstance(error, CreatorImportError):
+            return str(error) + ("\n" + "\n".join(error.details[:5]) if error.details else "")
+        return "自动结构化失败，请返回修改原文后重试。"
+
+    def _on_complete(self, report: VerificationReport) -> None:
+        self._report = report
+        semantic_unavailable = any(issue.rule_id == "SEMANTIC_AUDIT_NOT_EXECUTED" for issue in report.issues)
+        self.status.set("本地硬规则已完成；DeepSeek语义审计未执行" if semantic_unavailable else "核验完成")
+        self.summary.set(f"{'通过' if report.passed else '未通过'}｜分数 {report.score}｜错误 {report.errors}｜警告 {report.warnings}")
+        self._show_issues(report); self.start_button.configure(state="normal"); self.export_button.configure(state="normal")
+
+    def _on_error(self, error: Exception) -> None:
+        self._log.warning("verification failed: %s", type(error).__name__)
+        MainWindow._reset_run_state(self)
+        self.status.set("核验失败")
+        self.start_button.configure(state="normal")
+        messagebox.showerror("核验失败", friendly_error(error), parent=self)
+
+    def _reset_run_state(self) -> None:
+        """Clear all result state so an earlier run can never be mistaken for this one."""
+        self._report = None
+        self.summary.set("尚未执行核验")
+        MainWindow._clear_results(self)
+        self.export_button.configure(state="disabled")
+
+    def _clear_results(self) -> None:
+        for widget in self.results.winfo_children(): widget.destroy()
+
+    def _show_issues(self, report: VerificationReport) -> None:
+        self._clear_results()
+        if not report.issues: ctk.CTkLabel(self.results, text="未发现问题。", font=ctk.CTkFont(size=16)).pack(pady=30)
+        for issue in report.issues:
+            ctk.CTkLabel(self.results, text=f"{issue.severity.upper()} {issue.rule_id}｜{issue.title}\n{issue.message}\n路径：{issue.path}\n建议：{issue.suggestion}", justify="left", wraplength=900, anchor="w").pack(fill="x", padx=8, pady=7)
+
+    def _export(self) -> None:
+        if not self._report: return
+        path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON 文件", "*.json")])
+        if path:
+            try: write_report(self._report, path); self.status.set("报告已导出")
+            except ReportWriteError as exc: messagebox.showerror("导出失败", friendly_error(exc), parent=self)
+
+    def _close(self) -> None:
+        self.destroy()

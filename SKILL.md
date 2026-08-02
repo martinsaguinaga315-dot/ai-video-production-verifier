@@ -5,6 +5,22 @@ description: Validate structured AI video storyboards and production plans befor
 
 # AI Video Production Verifier
 
+## User entry points and distribution
+
+- The Windows desktop app is the normal-user entry point; the CLI remains the
+  developer and automation entry point.
+- Natural-language structuring is an input-adaptation layer. It does not change
+  the stable verification core or the meaning of its rules.
+- Professional JSON local-rule mode does not require an API Key. Creator mode
+  and semantic auditing require the user's own configured DeepSeek API Key.
+- The Windows onedir build, portable ZIP, and installer do not bundle API keys,
+  `.env` files, user reports, or telemetry. Keys remain in Windows Credential
+  Manager and are never written to release artifacts.
+- Version `0.2.0` is a Public Beta / release candidate, not a published GitHub
+  Release.
+- Semantic auditing is experimental and requires human review. The score
+  measures consistency with locked facts, not artistic quality.
+
 Validate an AI video production plan against locked project facts before generation begins.
 
 The verifier combines deterministic hard rules with an optional DeepSeek semantic audit.
@@ -301,7 +317,7 @@ When invoking this skill:
 
 ## Current limitations
 
-Version `0.1.0` validates structured production plans only.
+Version `0.2.0` validates structured production plans only.
 
 It does not yet:
 

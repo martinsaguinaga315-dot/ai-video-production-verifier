@@ -4728,6 +4728,23 @@ def _identity_continuity_precheck(
     return issues
 
 
+def _bounded_env_int(name: str, default: int, minimum: int, maximum: int) -> int:
+    """Read a bounded integer setting without letting malformed env break a run."""
+    try:
+        value = int(os.getenv(name, str(default)).strip())
+    except (TypeError, ValueError):
+        return default
+    return value if minimum <= value <= maximum else default
+
+
+def _semantic_timeout_seconds() -> int:
+    return _bounded_env_int("DEEPSEEK_SEMANTIC_TIMEOUT_SECONDS", 60, 5, 600)
+
+
+def _semantic_max_retries() -> int:
+    return _bounded_env_int("DEEPSEEK_SEMANTIC_MAX_RETRIES", 0, 0, 2)
+
+
 def semantic_audit(
     facts: ProjectFacts,
     output: DirectorOutput,
@@ -4765,6 +4782,8 @@ def semantic_audit(
     client = OpenAI(
         api_key=api_key,
         base_url=base_url,
+        timeout=_semantic_timeout_seconds(),
+        max_retries=_semantic_max_retries(),
     )
 
     system = """

@@ -1,0 +1,30 @@
+name: Windows build
+
+on:
+  push:
+    branches: [feature/creator-desktop-v0.2.0]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress --yes
+      - name: Build and verify Windows artifacts
+        shell: pwsh
+        run: ./packaging/build_windows.ps1
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-v0.2.0
+          path: |
+            release/AI-Video-Production-Verifier-Portable-v0.2.0.zip
+            release/AI-Video-Production-Verifier-Setup-v0.2.0.exe
+            release/SHA256SUMS.txt
+            release/release_manifest_v0.2.0.json

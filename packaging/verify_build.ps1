@@ -1,0 +1,5 @@
+[CmdletBinding()]
+param([Parameter(Mandatory=$true)][string]$DistRoot,[Parameter(Mandatory=$true)][string]$AppName)
+$ErrorActionPreference='Stop'; $exe=Join-Path $DistRoot "$AppName\$AppName.exe"
+if(-not(Test-Path -LiteralPath $exe)){throw "Missing frozen executable: $exe"}; if(-not(Test-Path -LiteralPath (Join-Path $DistRoot "$AppName\_internal"))){throw 'Missing bundled runtime: _internal'}; foreach($required in @('examples','LICENSE')){if(-not(Test-Path -LiteralPath (Join-Path $DistRoot "$AppName\_internal\$required"))){throw "Missing bundled resource: $required"}}
+$oldSmoke=$env:AIVPV_SMOKE_TEST; try{$env:AIVPV_SMOKE_TEST='1'; $process=Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden -PassThru; if(-not $process.WaitForExit(10000)){Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue; throw 'Frozen EXE smoke test timed out after 10 seconds.'}; if($process.ExitCode -ne 0){throw "Frozen EXE smoke test failed with code $($process.ExitCode)"}} finally {$env:AIVPV_SMOKE_TEST=$oldSmoke}; Write-Output 'EXE_SMOKE_RESULT = OK'
