@@ -2,6 +2,9 @@
 .env
 .env.local
 .env.*.local
+*.key
+*.secret
+api_keys.json
 
 # Python
 .venv/
@@ -14,6 +17,7 @@ __pycache__/
 .ruff_cache/
 
 # Runtime outputs
+work/smoke_creator_pipeline_result.json
 regression_results/
 semantic_traces/
 logs/
