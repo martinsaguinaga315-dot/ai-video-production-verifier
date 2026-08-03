@@ -2,6 +2,7 @@
 
 
 from story_generation.models import CreativeBrief, FieldProvenance, SourceKind
+from story_generation.builders.storyboard_builder import StoryboardBuilder
 
 
 class StoryService:
@@ -32,13 +33,13 @@ class StoryService:
         self.client = client
 
 
-    def create_story_request(
+    def _build_brief(
         self,
         idea: str,
         style: str | None = None,
         goal: str | None = None,
-    ):
-        brief = CreativeBrief(
+    ) -> CreativeBrief:
+        return CreativeBrief(
             brief_id="brief-user-idea",
             idea=idea,
             title=idea,
@@ -55,4 +56,44 @@ class StoryService:
             ),
         )
 
+    def create_story_request(
+        self,
+        idea: str,
+        style: str | None = None,
+        goal: str | None = None,
+    ):
+        brief = self._build_brief(idea, style, goal)
         return self.generator.build_request(brief)
+
+    def create_story(
+        self,
+        idea: str,
+        style: str | None = None,
+        goal: str | None = None,
+    ) -> dict:
+        if self.client is None:
+            raise RuntimeError("DeepSeek client is required to create a story")
+
+        brief = self._build_brief(idea, style, goal)
+        request = self.generator.build_request(brief)
+        system_prompt = (
+            "You generate AI video storyboard drafts. "
+            "Return only a JSON object."
+        )
+        user_prompt = (
+            f"Generation request: {request.request_id}\n"
+            f"Stage: {request.stage_name}\n"
+            f"Idea: {brief.idea}\n"
+            f"Style: {', '.join(brief.visual_style) or 'unspecified'}\n"
+            f"Goal: {', '.join(brief.must_include) or 'unspecified'}"
+        )
+        return self.client.generate_json(system_prompt, user_prompt)
+
+    def create_storyboard(
+        self,
+        idea: str,
+        style: str | None = None,
+        goal: str | None = None,
+    ):
+        payload = self.create_story(idea, style, goal)
+        return StoryboardBuilder().build(payload)
