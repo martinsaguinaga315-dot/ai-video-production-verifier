@@ -17,13 +17,20 @@ class StoryboardBuilder:
         raw_shots = payload.get("shots", [])
         if not isinstance(raw_shots, list):
             raise TypeError("Storyboard shots must be a list")
+        shots: list[dict[str, Any]] = []
+        previous_end_time: float | None = None
+        for index, shot in enumerate(raw_shots):
+            built_shot = self._build_shot(shot, index, request_id, previous_end_time)
+            shots.append(built_shot)
+            previous_end_time = built_shot["end_time_s"]
+
         draft_data = {
             "storyboard_id": payload.get("storyboard_id") or f"storyboard-{request_id}",
             "scene_plan_id": payload.get("scene_plan_id") or f"scene-plan-{request_id}",
             "target_duration_s": payload.get("target_duration_s", 60.0),
             "version": payload.get("version", 1),
             "provenance": self._provenance("/storyboard", request_id),
-            "shots": [self._build_shot(shot, index, request_id) for index, shot in enumerate(raw_shots)],
+            "shots": shots,
         }
         return StoryboardDraft.model_validate(draft_data)
 
@@ -36,19 +43,36 @@ class StoryboardBuilder:
     def _provenance(field_path: str, request_id: str) -> dict[str, str]:
         return {"source_kind": "generated", "field_path": field_path, "generation_request_id": request_id}
 
-    def _build_shot(self, raw_shot: Any, index: int, request_id: str) -> dict[str, Any]:
+    def _build_shot(
+        self,
+        raw_shot: Any,
+        index: int,
+        request_id: str,
+        previous_end_time: float | None,
+    ) -> dict[str, Any]:
         if not isinstance(raw_shot, dict):
             raise TypeError("Each storyboard shot must be a JSON object")
-        start_time = raw_shot.get("start_time_s", float(index * 5))
-        end_time = raw_shot.get("end_time_s", float(index * 5 + 5))
+        start_time = raw_shot.get("start_time_s")
+        if start_time is None:
+            start_time = previous_end_time if previous_end_time is not None else 0.0
+        end_time = raw_shot.get("end_time_s")
         duration = raw_shot.get("duration_s")
         if duration is None:
-            duration = end_time - start_time if end_time > start_time else 5.0
+            duration = raw_shot.get("duration")
+        if duration is None:
+            duration = end_time - start_time if end_time is not None and end_time > start_time else 5.0
+        if end_time is None:
+            end_time = start_time + duration
+        sequence = raw_shot.get("sequence")
+        if sequence is None:
+            sequence = raw_shot.get("shot_number")
+        if sequence is None:
+            sequence = index + 1
         path = f"/shots/{index}"
         return {
             "shot_id": raw_shot.get("shot_id") or f"shot-{index + 1:03d}",
             "scene_id": raw_shot.get("scene_id") or "scene-generated-001",
-            "sequence": raw_shot.get("sequence", index + 1),
+            "sequence": sequence,
             "start_time_s": start_time,
             "end_time_s": end_time,
             "duration_s": duration,
