@@ -79,6 +79,7 @@ def test_windows_build_discovers_frozen_application_from_the_filesystem() -> Non
     assert "Expected exactly one top-level frozen EXE" in script
     assert "-ExePath $frozenExe" in script
     assert "-SmokeDataDir $smokeDataDir" in script
+    assert "Invoke-FrozenCreatorSmoke -FrozenExe $frozenExe" in script
     assert "$appName" not in script
 
 

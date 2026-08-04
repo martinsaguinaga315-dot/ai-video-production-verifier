@@ -62,6 +62,20 @@ function Find-FrozenApplication([string]$DistRoot) {
     }
 }
 
+function Invoke-FrozenCreatorSmoke([string]$FrozenExe, [string]$SmokeDataDir) {
+    $oldLocalAppData = $env:LOCALAPPDATA
+    try {
+        New-Item -ItemType Directory -Force -Path $SmokeDataDir | Out-Null
+        $env:LOCALAPPDATA = (Resolve-Path -LiteralPath $SmokeDataDir).Path
+        $process = Start-Process -FilePath $FrozenExe -ArgumentList '--smoke-creator-ui' -WindowStyle Hidden -Wait -PassThru
+        if ($process.ExitCode -ne 0) { throw "Frozen Creator smoke test failed with code $($process.ExitCode)." }
+    }
+    finally {
+        $env:LOCALAPPDATA = $oldLocalAppData
+    }
+    Write-Output 'FROZEN_CREATOR_SMOKE_RESULT = OK'
+}
+
 $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
 if (-not $pyLauncher) { throw 'Python 3.11 is required, but the Windows py launcher is unavailable. Install Python 3.11, then rerun packaging/build_windows.ps1.' }
 $pythonExe = (& $pyLauncher.Source -3.11 -c "import sys; print(sys.executable)" 2>$null).Trim()
@@ -87,7 +101,7 @@ Write-Output "Frozen app directory: $frozenAppDir"
 Write-Output "Frozen executable: $frozenExe"
 $smokeDataDir = Join-Path $buildDir 'frozen-smoke-appdata'
 & (Join-Path $PSScriptRoot 'verify_build.ps1') -ExePath $frozenExe -SmokeDataDir $smokeDataDir
-Invoke-Checked $buildPython @('scripts\smoke_frozen_creator_ui.py')
+Invoke-FrozenCreatorSmoke -FrozenExe $frozenExe -SmokeDataDir (Join-Path $buildDir 'frozen-creator-smoke-appdata')
 & (Join-Path $PSScriptRoot 'package_portable.ps1') -FrozenAppDir $frozenAppDir -FrozenExe $frozenExe -OutputRoot $releaseDir -Version $version | Out-Host
 
 $iscc = Find-IsccExecutable
