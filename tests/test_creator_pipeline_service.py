@@ -8,9 +8,14 @@ class MockStoryService:
     def __init__(self, payload):
         self.payload = payload
         self.calls = []
+        self.repairs = []
 
     def create_story(self, idea, style=None, goal=None):
         self.calls.append((idea, style, goal))
+        return self.payload
+
+    def repair_storyboard(self, storyboard, issues, target_duration_s, parent_request_id=None):
+        self.repairs.append((storyboard, issues, target_duration_s, parent_request_id))
         return self.payload
 
 

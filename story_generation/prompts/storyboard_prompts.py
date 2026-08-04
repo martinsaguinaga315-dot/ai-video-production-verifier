@@ -1,6 +1,12 @@
 ﻿from __future__ import annotations
 
 
+import json
+from typing import Any
+
+from story_generation.models import GenerationIssue, StoryboardDraft
+
+
 STORYBOARD_GENERATION_SYSTEM_PROMPT = """
 你是一名专业电影导演、分镜师和AI视频提示词设计师。
 
@@ -68,3 +74,42 @@ def build_storyboard_prompt(
   ]
 }}
 """
+
+
+_REPAIR_INSTRUCTIONS = {
+    "DURATION_MISMATCH": "重新分配正数 duration_s，使总和严格等于目标时长。",
+    "SHOT_TIME_OVERLAP": "按 sequence 输出连续时间轴，不允许镜头重叠。",
+    "NONCONTIGUOUS_SEQUENCE": "sequence 从 1 开始，无重复、无跳号。",
+}
+_INTERNAL_FIELDS = {"provenance", "field_provenance", "storyboard_id", "scene_plan_id", "shot_id", "scene_id", "location_id"}
+
+
+def build_storyboard_repair_prompt(storyboard: StoryboardDraft, issues: list[GenerationIssue], target_duration_s: float, parent_request_id: str | None = None) -> str:
+    sanitized = _remove_internal_fields(storyboard.model_dump(mode="json"))
+    issue_details = "\n".join(
+        f"- {item.code.value}: {item.message}\n  修正要求：{_REPAIR_INSTRUCTIONS[item.code.value]}"
+        for item in issues if item.code.value in _REPAIR_INSTRUCTIONS
+    )
+    return f"""
+这是一次 Storyboard 验证失败后的单次修正。请返回完整替换后的 storyboard，不是 patch。
+首次 generation_request_id：{parent_request_id or "未提供"}
+目标总时长：{target_duration_s} 秒。
+
+已检测问题：
+{issue_details}
+
+原 Storyboard（已移除 provenance、field_provenance 和内部追踪字段）：
+{json.dumps(sanitized, ensure_ascii=False, indent=2)}
+
+只输出一个 JSON object。禁止 Markdown、禁止 ```json code fence、禁止 JSON 外的任何文字。
+顶层必须包含 title、target_duration_s 和非空 shots。所有 duration_s 必须为正数，duration_s 总和必须严格等于 {target_duration_s} 秒。
+输出完整替换结果，并在输出前自行复核上述问题均已修正。
+"""
+
+
+def _remove_internal_fields(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _remove_internal_fields(item) for key, item in value.items() if key not in _INTERNAL_FIELDS}
+    if isinstance(value, list):
+        return [_remove_internal_fields(item) for item in value]
+    return value

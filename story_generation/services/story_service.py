@@ -1,10 +1,11 @@
 ﻿from __future__ import annotations
 
 
-from story_generation.models import CreativeBrief, FieldProvenance, SourceKind
+from story_generation.models import CreativeBrief, FieldProvenance, GenerationIssue, SourceKind, StoryboardDraft
 from story_generation.builders.storyboard_builder import StoryboardBuilder
 from story_generation.prompts.storyboard_prompts import (
     STORYBOARD_GENERATION_SYSTEM_PROMPT,
+    build_storyboard_repair_prompt,
     build_storyboard_prompt,
 )
 
@@ -96,3 +97,9 @@ class StoryService:
     ):
         payload = self.create_story(idea, style, goal)
         return StoryboardBuilder().build(payload)
+
+    def repair_storyboard(self, storyboard: StoryboardDraft, issues: list[GenerationIssue], target_duration_s: float, parent_request_id: str | None = None) -> dict:
+        if self.client is None:
+            raise RuntimeError("DeepSeek client is required to repair a storyboard")
+        prompt = build_storyboard_repair_prompt(storyboard, issues, target_duration_s, parent_request_id)
+        return self.client.generate_json(STORYBOARD_GENERATION_SYSTEM_PROMPT, prompt)
