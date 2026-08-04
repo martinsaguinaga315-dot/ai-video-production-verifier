@@ -24,3 +24,16 @@ def test_delete_clear_trim_and_corrupt_record_are_safe(tmp_path):
     (tmp_path / "broken.json").write_text("{bad", encoding="utf-8")
     assert len(store.list_records()) == 1
     store.clear(); assert store.list_records() == []
+
+
+def test_legacy_directory_migrates_and_new_record_uses_new_directory(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    legacy = tmp_path / "AI-Video-Production-Verifier" / "creator_history"
+    legacy.mkdir(parents=True)
+    record = {"history_id": "same", "created_at": "2026-01-01T00:00:00+00:00", "idea": "旧", "style": None, "goal": None, "result": result().model_dump(mode="json")}
+    (legacy / "same.json").write_text(json.dumps(record), encoding="utf-8")
+    store = CreatorHistoryStore()
+    assert [item["history_id"] for item in store.list_records()] == ["same"]
+    assert (tmp_path / "AIVideoProductionVerifier" / "creator_history" / "same.json").is_file()
+    created = store.save(idea="新", style=None, goal=None, result=result())
+    assert (tmp_path / "AIVideoProductionVerifier" / "creator_history" / f"{created}.json").is_file()

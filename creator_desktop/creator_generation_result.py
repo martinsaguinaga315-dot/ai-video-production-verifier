@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from tkinter import filedialog
 
 import customtkinter as ctk
 
@@ -67,6 +69,7 @@ class CreatorGenerationResultFrame(ctk.CTkFrame):
         buttons.grid(row=2, column=0, padx=12, pady=(0, 10), sticky="w")
         ctk.CTkButton(buttons, text="复制全部文本", width=110, command=lambda: self._copy(self.rendered_text)).pack(side="left")
         ctk.CTkButton(buttons, text="复制完整 JSON", width=110, command=self._copy_json, state="normal" if artifact else "disabled").pack(side="left", padx=6)
+        ctk.CTkButton(buttons, text="保存生成结果 JSON", width=140, command=self._save_json, state="normal" if artifact else "disabled").pack(side="left", padx=6)
         ctk.CTkLabel(buttons, textvariable=self.copy_status).pack(side="left", padx=8)
         row += 1
 
@@ -140,6 +143,21 @@ class CreatorGenerationResultFrame(ctk.CTkFrame):
             self.copy_status.set("没有可复制的 JSON")
             return
         self._copy(json.dumps(self._result.model_dump(mode="json"), ensure_ascii=False, indent=2))
+
+    def _save_json(self) -> None:
+        if self._result is None or self._result.artifact is None:
+            self.copy_status.set("没有可保存的 JSON")
+            return
+        storyboard_id = getattr(self._result.artifact, "storyboard_id", "result")
+        path = filedialog.asksaveasfilename(initialfile=f"storyboard-{storyboard_id}.json", defaultextension=".json", filetypes=[("JSON 文件", "*.json")])
+        if not path:
+            return
+        try:
+            Path(path).write_text(json.dumps(self._result.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except OSError:
+            self.copy_status.set("JSON 保存失败")
+            return
+        self.copy_status.set("JSON 已保存")
 
     def _copy(self, text: str) -> None:
         self.clipboard_clear()

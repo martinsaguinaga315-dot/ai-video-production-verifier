@@ -38,6 +38,7 @@ Invoke-Checked $buildPython @('verify.py', 'examples\clean\facts.json', 'example
 if ($LASTEXITCODE -ne 1) { throw "Unknown-character CLI regression returned $LASTEXITCODE, expected 1." }
 Invoke-Checked $buildPython @('-m', 'PyInstaller', '--noconfirm', '--clean', 'packaging\windows.spec')
 & (Join-Path $PSScriptRoot 'verify_build.ps1') -DistRoot $distDir -AppName $appName
+Invoke-Checked $buildPython @('scripts\smoke_frozen_creator_ui.py')
 & (Join-Path $PSScriptRoot 'package_portable.ps1') -DistRoot $distDir -OutputRoot $releaseDir -Version $version -AppName $appName | Out-Host
 
 $installerBuilt = $false
