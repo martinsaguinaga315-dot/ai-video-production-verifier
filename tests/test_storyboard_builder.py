@@ -46,3 +46,40 @@ def test_builder_preserves_standard_timing_fields():
 
     shot = result.shots[0]
     assert (shot.sequence, shot.start_time_s, shot.end_time_s, shot.duration_s) == (3, 2, 9, 7)
+
+
+def test_builder_normalizes_storyboard_wrappers_and_deepseek_aliases():
+    builder = StoryboardBuilder()
+    variants = [
+        {"shots": [{"shot": 1, "duration": 60, "audio": "机械声"}]},
+        {"storyboard": [{"shot": 1, "duration": 60, "audio": "机械声"}]},
+        {"storyboard": {"shots": [{"shot": 1, "duration": 60, "audio": "机械声"}]}},
+    ]
+    for payload in variants:
+        result = builder.build(payload)
+        shot = result.shots[0]
+        assert (shot.sequence, shot.duration_s, shot.sound) == (1, 60, ["机械声"])
+
+
+def test_builder_keeps_39_second_deepseek_duration_mismatch():
+    storyboard = StoryboardBuilder().build({
+        "storyboard": [{"shot": index + 1, "duration": duration} for index, duration in enumerate([4, 3, 4, 4, 4, 5, 3, 5, 4, 3])],
+    })
+    result = StoryValidationService().validate(storyboard)
+    assert result.status.value == "failed"
+    assert {issue.code.value for issue in result.issues} == {"DURATION_MISMATCH"}
+
+
+def test_builder_60_second_deepseek_storyboard_succeeds():
+    storyboard = StoryboardBuilder().build({
+        "storyboard": [{"shot": index + 1, "duration": 6} for index in range(10)],
+    })
+    result = StoryValidationService().validate(storyboard)
+    assert result.status.value == "succeeded"
+
+
+def test_builder_empty_shots_are_not_reported_as_success():
+    storyboard = StoryboardBuilder().build({"shots": []})
+    result = StoryValidationService().validate(storyboard)
+    assert result.status.value == "failed"
+    assert {issue.code.value for issue in result.issues} == {"DURATION_MISMATCH"}

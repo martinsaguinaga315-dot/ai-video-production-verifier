@@ -14,7 +14,7 @@ class StoryboardBuilder:
         if not isinstance(payload, dict):
             raise TypeError("Storyboard payload must be a JSON object")
         request_id = self._generation_request_id(payload)
-        raw_shots = payload.get("shots", [])
+        raw_shots = self._raw_shots(payload)
         if not isinstance(raw_shots, list):
             raise TypeError("Storyboard shots must be a list")
         shots: list[dict[str, Any]] = []
@@ -33,6 +33,31 @@ class StoryboardBuilder:
             "shots": shots,
         }
         return StoryboardDraft.model_validate(draft_data)
+
+    @staticmethod
+    def _raw_shots(payload: dict[str, Any]) -> list[Any]:
+        """Read known DeepSeek storyboard wrappers without changing shot data."""
+        if "shots" in payload:
+            raw_shots = payload["shots"]
+        else:
+            storyboard = payload.get("storyboard", [])
+            if isinstance(storyboard, list):
+                raw_shots = storyboard
+            elif isinstance(storyboard, dict):
+                if "shots" in storyboard:
+                    raw_shots = storyboard["shots"]
+                elif isinstance(storyboard.get("scenes"), list):
+                    raw_shots = []
+                    for scene in storyboard["scenes"]:
+                        if isinstance(scene, dict) and isinstance(scene.get("shots"), list):
+                            raw_shots.extend(scene["shots"])
+                else:
+                    raw_shots = []
+            else:
+                raw_shots = []
+        if not isinstance(raw_shots, list):
+            raise TypeError("Storyboard shots must be a list")
+        return raw_shots
 
     @staticmethod
     def _generation_request_id(payload: dict[str, Any]) -> str:
@@ -67,6 +92,8 @@ class StoryboardBuilder:
         if sequence is None:
             sequence = raw_shot.get("shot_number")
         if sequence is None:
+            sequence = raw_shot.get("shot")
+        if sequence is None:
             sequence = index + 1
         path = f"/shots/{index}"
         return {
@@ -83,7 +110,7 @@ class StoryboardBuilder:
             "action": raw_shot.get("action") or "No action specified.",
             "performance": raw_shot.get("performance") or "Natural performance.",
             "dialogue": [self._build_dialogue(item, f"{path}/dialogue/{i}", request_id) for i, item in enumerate(raw_shot.get("dialogue", []))],
-            "sound": raw_shot.get("sound", []),
+            "sound": self._build_sound(raw_shot),
             "ending_state": self._build_state(raw_shot.get("ending_state"), f"{path}/ending_state", request_id),
             "camera": raw_shot.get("camera") or "Static medium shot.",
             "first_frame_prompt": raw_shot.get("first_frame_prompt") or "Cinematic storyboard frame.",
@@ -95,6 +122,15 @@ class StoryboardBuilder:
             "generation_segments": raw_shot.get("generation_segments", []),
             "provenance": self._provenance(path, request_id),
         }
+
+    @staticmethod
+    def _build_sound(raw_shot: dict[str, Any]) -> list[str]:
+        value = raw_shot.get("sound")
+        if value is None:
+            value = raw_shot.get("audio", [])
+        if isinstance(value, str):
+            return [value]
+        return value if isinstance(value, list) else []
 
     def _build_state(self, value: Any, path: str, request_id: str) -> dict[str, Any]:
         source = value if isinstance(value, dict) else {}

@@ -71,12 +71,76 @@ class DeepSeekClient:
         if not content:
             raise RuntimeError("DeepSeek returned an empty response")
 
-        try:
-            result = json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError("DeepSeek returned invalid JSON") from exc
+        result = self._parse_json_object(content)
 
         if not isinstance(result, dict):
             raise RuntimeError("DeepSeek response JSON must be an object")
 
         return result
+
+    @classmethod
+    def _parse_json_object(cls, content: str) -> dict[str, Any]:
+        """Parse a response, allowing only a fenced or singly embedded object."""
+        try:
+            result = json.loads(content)
+        except json.JSONDecodeError:
+            result = cls._recover_json_object(content)
+        if not isinstance(result, dict):
+            raise RuntimeError("DeepSeek response JSON must be an object")
+        return result
+
+    @classmethod
+    def _recover_json_object(cls, content: str) -> Any:
+        stripped = content.strip()
+        if stripped.startswith("```") and stripped.endswith("```"):
+            lines = stripped.splitlines()
+            if len(lines) >= 3:
+                fenced_body = "\n".join(lines[1:-1]).strip()
+                try:
+                    return json.loads(fenced_body)
+                except json.JSONDecodeError:
+                    content = fenced_body
+
+        objects = cls._complete_json_objects(content)
+        if len(objects) > 1:
+            raise RuntimeError("DeepSeek returned multiple conflicting JSON objects")
+        if len(objects) == 1:
+            try:
+                return json.loads(objects[0])
+            except json.JSONDecodeError as exc:
+                raise RuntimeError("DeepSeek returned unrecoverable JSON content") from exc
+        if "{" in content:
+            raise RuntimeError("DeepSeek returned truncated JSON response")
+        raise RuntimeError("DeepSeek returned invalid JSON")
+
+    @staticmethod
+    def _complete_json_objects(content: str) -> list[str]:
+        objects: list[str] = []
+        start: int | None = None
+        depth = 0
+        in_string = False
+        escaped = False
+        for index, char in enumerate(content):
+            if start is None:
+                if char == "{":
+                    start = index
+                    depth = 1
+                continue
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+            elif char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    objects.append(content[start:index + 1])
+                    start = None
+        return objects

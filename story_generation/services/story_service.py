@@ -3,6 +3,10 @@
 
 from story_generation.models import CreativeBrief, FieldProvenance, SourceKind
 from story_generation.builders.storyboard_builder import StoryboardBuilder
+from story_generation.prompts.storyboard_prompts import (
+    STORYBOARD_GENERATION_SYSTEM_PROMPT,
+    build_storyboard_prompt,
+)
 
 
 class StoryService:
@@ -76,18 +80,13 @@ class StoryService:
 
         brief = self._build_brief(idea, style, goal)
         request = self.generator.build_request(brief)
-        system_prompt = (
-            "You generate AI video storyboard drafts. "
-            "Return only a JSON object."
+        user_prompt = build_storyboard_prompt(
+            idea=brief.idea,
+            style=", ".join(brief.visual_style) or None,
+            goal=", ".join(brief.must_include) or None,
         )
-        user_prompt = (
-            f"Generation request: {request.request_id}\n"
-            f"Stage: {request.stage_name}\n"
-            f"Idea: {brief.idea}\n"
-            f"Style: {', '.join(brief.visual_style) or 'unspecified'}\n"
-            f"Goal: {', '.join(brief.must_include) or 'unspecified'}"
-        )
-        return self.client.generate_json(system_prompt, user_prompt)
+        user_prompt += f"\nGeneration request: {request.request_id}\nStage: {request.stage_name}\n"
+        return self.client.generate_json(STORYBOARD_GENERATION_SYSTEM_PROMPT, user_prompt)
 
     def create_storyboard(
         self,
