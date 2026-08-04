@@ -1,11 +1,13 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "0.2.0"
+  #define MyAppVersion "0.3.0"
 #endif
 #ifndef MyAppName
   #define MyAppName "AI Video Production Verifier"
 #endif
+#ifndef MyAppExeName
+  #define MyAppExeName MyAppName + ".exe"
+#endif
 #define MyAppPublisher "Muzifan AIGC"
-#define MyAppExeName MyAppName + ".exe"
 [Setup]
 AppId={{2C5303E9-94B6-4F8C-A4D7-8CD9A4EED679}
 AppName={#MyAppName}
@@ -16,6 +18,7 @@ DefaultGroupName={#MyAppName}
 OutputBaseFilename=AI-Video-Production-Verifier-Setup-v{#MyAppVersion}
 OutputDir=..\release
 SetupIconFile=..\assets\app.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 LicenseFile=..\LICENSE
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible

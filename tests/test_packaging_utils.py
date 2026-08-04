@@ -70,16 +70,27 @@ def test_sensitive_scan_rejects_forbidden_build_paths_and_archives(tmp_path: Pat
     assert scan_zip(archive)
 
 
-def test_windows_build_reads_unicode_app_name_as_utf8() -> None:
+def test_windows_build_discovers_frozen_application_from_the_filesystem() -> None:
     script = Path("packaging/build_windows.ps1").read_text(encoding="utf-8")
-    assert "$env:PYTHONIOENCODING = 'utf-8'" in script
-    assert "$env:PYTHONUTF8 = '1'" in script
-    assert "Application name metadata was empty." in script
+    assert "function Find-FrozenApplication" in script
+    assert "Get-ChildItem -LiteralPath $DistRoot -Directory" in script
+    assert "-File -Filter '*.exe'" in script
+    assert "$candidates.Count -ne 1" in script
+    assert "Expected exactly one top-level frozen EXE" in script
+    assert "-ExePath $frozenExe" in script
+    assert "-SmokeDataDir $smokeDataDir" in script
+    assert "Invoke-FrozenCreatorSmoke -FrozenExe $frozenExe" in script
+    assert "$appName" not in script
 
 
 def test_frozen_build_verifies_pyinstaller_internal_resources() -> None:
     script = Path("packaging/verify_build.ps1").read_text(encoding="utf-8")
-    assert '"$AppName\\_internal\\$required"' in script
+    assert "[string]$ExePath" in script
+    assert "Resolve-Path -LiteralPath $ExePath" in script
+    assert 'Join-Path $frozenAppDir "_internal\\$required"' in script
+    assert "[string]$SmokeDataDir" in script
+    assert "$env:LOCALAPPDATA=(Resolve-Path -LiteralPath $SmokeDataDir).Path" in script
+    assert "$AppName" not in script
 
 
 def test_frozen_build_smoke_test_waits_for_clean_exit() -> None:
@@ -94,11 +105,30 @@ def test_packaging_scripts_copy_children_without_literal_wildcards() -> None:
     portable = Path("packaging/package_portable.ps1").read_text(encoding="utf-8")
     windows = Path("packaging/build_windows.ps1").read_text(encoding="utf-8")
     assert "Copy-Item -LiteralPath (Join-Path $source '*')" not in portable
-    assert 'Copy-Item -LiteralPath (Join-Path $distDir "$appName\\*")' not in windows
+    assert 'Join-Path $distDir $appName' not in windows
     assert "Get-ChildItem -LiteralPath $source -Force" in portable
-    assert "Get-ChildItem -LiteralPath $installerSource -Force" in windows
+    assert "Get-ChildItem -LiteralPath $frozenAppDir -Force" in windows
     assert "Copy-Item -LiteralPath $_.FullName" in portable
     assert "Copy-Item -LiteralPath $_.FullName" in windows
+
+
+def test_frozen_paths_are_reused_for_portable_and_installer_staging() -> None:
+    windows = Path("packaging/build_windows.ps1").read_text(encoding="utf-8")
+    portable = Path("packaging/package_portable.ps1").read_text(encoding="utf-8")
+    installer = Path("packaging/installer.iss").read_text(encoding="utf-8")
+    assert "-FrozenAppDir $frozenAppDir -FrozenExe $frozenExe" in windows
+    assert "Get-ChildItem -LiteralPath $frozenAppDir -Force" in windows
+    assert "[string]$FrozenAppDir" in portable
+    assert "[string]$FrozenExe" in portable
+    assert "#ifndef MyAppExeName" in installer
+    assert "UninstallDisplayIcon={app}\\{#MyAppExeName}" in installer
+    assert "UninstallDisplayIcon={app}\\AI视频制作核验器.exe" not in installer
+    assert "/DMyAppExeName=$([System.IO.Path]::GetFileName($frozenExe))" in windows
+
+
+def test_packaging_powershell_scripts_contain_no_known_mojibake_name() -> None:
+    scripts = Path("packaging").glob("*.ps1")
+    assert all("AI瑙嗛鍒朵綔鏍搁獙鍣" not in script.read_text(encoding="utf-8") for script in scripts)
 
 
 def test_windows_application_icon_is_a_valid_multiresolution_ico() -> None:

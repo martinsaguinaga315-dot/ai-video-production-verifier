@@ -2,6 +2,9 @@
 .env
 .env.local
 .env.*.local
+*.key
+*.secret
+api_keys.json
 
 # Python
 .venv/
@@ -14,6 +17,12 @@ __pycache__/
 .ruff_cache/
 
 # Runtime outputs
+work/smoke_creator_pipeline_result.json
+work/debug_generation_request.json
+work/debug_deepseek_raw_response.json
+work/debug_storyboard_draft.json
+work/debug_generation_result.json
+.test-tmp/
 regression_results/
 semantic_traces/
 logs/

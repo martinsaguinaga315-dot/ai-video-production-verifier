@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here.
 
+## v0.3.0 Public Beta / release candidate
+
+- Added AI Creator generation, strict DeepSeek JSON handling, StoryboardBuilder normalization, validation, and one bounded AI repair.
+- Added AI Creator desktop mode, result copying/JSON export, local history, and frozen Creator smoke coverage.
+- Creator history keeps up to 50 records and migrates compatible records from the former history directory.
+
+### Known limitations
+
+- AI Creator requires DeepSeek API access.
+- Full StoryBible / ScenePlan reference validation, shot editing, partial regeneration, and cloud sync are not available.
+
 ## v0.2.0 Public Beta
 
 This is a public beta / release candidate. A GitHub Release has not been

@@ -1,16 +1,16 @@
 # AI Video Production Verifier
 
-A pre-production validation tool for structured AI video storyboards and shot plans.
+A Public Beta pre-production tool for structured AI video storyboards, shot plans, and AI Creator generation.
 
 It checks locked facts against a proposed director output before image or video generation begins.
 
 ## Windows quick start
 
 The Windows installer and portable ZIP build pipeline is ready for the
-`v0.2.0` Public Beta / release candidate. It is not a published GitHub Release
+`v0.3.0` Public Beta / release candidate. It is not a published GitHub Release
 yet.
 
-1. Open GitHub Releases when `v0.2.0` is published.
+1. Open GitHub Releases when `v0.3.0` is published.
 2. Download the Setup installer, or download the Portable ZIP and extract it fully.
 3. Start **AI视频制作核验器** from the Start menu, desktop shortcut, or extracted folder.
 4. On first use, enter your own DeepSeek API Key if you need creator mode or semantic auditing.
@@ -32,6 +32,12 @@ does not require Python; do not run the EXE from inside the ZIP.
 - Semantic auditing is experimental; review its results before acting on them.
 - The score measures consistency with locked production facts, not artistic quality.
 - Normal creator mode and professional JSON mode use the same stable verification core.
+
+### v0.3.0 desktop modes and AI Creator
+
+The Windows desktop app provides **AI 创作生成**, **普通创作者模式**, and **专业 JSON 模式**. AI Creator runs `idea/style/goal → DeepSeek → StoryboardDraft → automatic validation → at most one AI repair`.
+
+Creator results support copying and UTF-8 JSON export. Local history retains at most 50 records in `%LOCALAPPDATA%\AIVideoProductionVerifier\creator_history`. API Keys remain in Windows Credential Manager and are not stored in history or exported Creator JSON.
 
 ## What it checks
 
@@ -59,12 +65,12 @@ Optional DeepSeek semantic auditing adds:
 
 ## Current status
 
-Version: `0.2.0`
+Version: `0.3.0`
 
 Current checked baseline:
 
 - 2 versioned CLI example cases
-- 98 non-network pytest checks passed for this release-candidate fix validation
+- 219 automated pytest checks passed for the v0.3.0 release-hardening baseline
 - no live semantic API calls in automated tests
 
 The semantic layer is experimental. The deterministic layer is the primary stable interface.
