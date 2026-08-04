@@ -1,6 +1,8 @@
 """Read-only result display for AI Creator storyboard generation."""
 from __future__ import annotations
 
+import json
+
 import customtkinter as ctk
 
 from story_generation.models import GenerationResult, StoryboardDraft
@@ -12,6 +14,8 @@ class CreatorGenerationResultFrame(ctk.CTkFrame):
     def __init__(self, master) -> None:
         super().__init__(master)
         self.rendered_text = ""
+        self._result: GenerationResult | None = None
+        self.copy_status = ctk.StringVar(value="")
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
         ctk.CTkLabel(self, text="Storyboard 生成结果", font=ctk.CTkFont(size=22, weight="bold")).grid(
@@ -23,6 +27,7 @@ class CreatorGenerationResultFrame(ctk.CTkFrame):
         self.clear()
 
     def clear(self) -> None:
+        self._result = None
         self._clear_content()
         self.show_message("等待 Storyboard 生成结果。")
 
@@ -33,6 +38,7 @@ class CreatorGenerationResultFrame(ctk.CTkFrame):
         self.message_label.grid(row=0, column=0, padx=14, pady=22, sticky="w")
 
     def show_result(self, result: GenerationResult) -> None:
+        self._result = result
         self._clear_content()
         row = 0
         status_value = getattr(result.status, "value", str(result.status))
@@ -57,6 +63,11 @@ class CreatorGenerationResultFrame(ctk.CTkFrame):
         rendered_lines = list(summary_lines)
         self.summary_label = ctk.CTkLabel(summary, text="\n".join(summary_lines), justify="left", wraplength=840)
         self.summary_label.grid(row=1, column=0, padx=12, pady=(0, 12), sticky="w")
+        buttons = ctk.CTkFrame(summary, fg_color="transparent")
+        buttons.grid(row=2, column=0, padx=12, pady=(0, 10), sticky="w")
+        ctk.CTkButton(buttons, text="复制全部文本", width=110, command=lambda: self._copy(self.rendered_text)).pack(side="left")
+        ctk.CTkButton(buttons, text="复制完整 JSON", width=110, command=self._copy_json, state="normal" if artifact else "disabled").pack(side="left", padx=6)
+        ctk.CTkLabel(buttons, textvariable=self.copy_status).pack(side="left", padx=8)
         row += 1
 
         if artifact is None:
@@ -90,6 +101,12 @@ class CreatorGenerationResultFrame(ctk.CTkFrame):
             ctk.CTkLabel(card, text="\n".join(fields), justify="left", wraplength=800, anchor="w").grid(
                 row=0, column=0, padx=10, pady=10, sticky="ew"
             )
+            copy_buttons = ctk.CTkFrame(card, fg_color="transparent")
+            copy_buttons.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="w")
+            shot_text = "\n".join(fields)
+            ctk.CTkButton(copy_buttons, text="复制镜头", width=82, command=lambda text=shot_text: self._copy(text)).pack(side="left")
+            ctk.CTkButton(copy_buttons, text="复制 First frame", width=110, command=lambda text=shot.first_frame_prompt: self._copy(text)).pack(side="left", padx=5)
+            ctk.CTkButton(copy_buttons, text="复制 Video prompt", width=110, command=lambda text=shot.video_prompt: self._copy(text)).pack(side="left", padx=5)
         row += 1
 
         issues_section = ctk.CTkFrame(self.content)
@@ -117,6 +134,18 @@ class CreatorGenerationResultFrame(ctk.CTkFrame):
     def _clear_content(self) -> None:
         for child in self.content.winfo_children():
             child.destroy()
+
+    def _copy_json(self) -> None:
+        if self._result is None or self._result.artifact is None:
+            self.copy_status.set("没有可复制的 JSON")
+            return
+        self._copy(json.dumps(self._result.model_dump(mode="json"), ensure_ascii=False, indent=2))
+
+    def _copy(self, text: str) -> None:
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        self.copy_status.set("已复制")
+        self.after(1500, lambda: self.copy_status.set(""))
 
     def _section_message(self, row: int, text: str) -> None:
         ctk.CTkLabel(self.content, text=text, justify="left", wraplength=880).grid(

@@ -19,6 +19,8 @@ from creator_desktop.creator_result import CreatorResultFrame
 from creator_desktop.creator_generation_controller import CreatorGenerationController
 from creator_desktop.creator_generation_result import CreatorGenerationResultFrame
 from creator_desktop.creator_generation_view import CreatorGenerationView
+from creator_desktop.creator_history_store import CreatorHistoryStore
+from creator_desktop.creator_history_view import CreatorHistoryView
 from creator_desktop.credentials import CredentialError, has_saved_api_key, load_api_key
 from creator_desktop.director_review import DirectorReviewFrame
 from creator_desktop.facts_review import FactsReviewFrame, show_json_dialog
@@ -28,6 +30,7 @@ from creator_desktop.verification_controller import VerificationController
 from creator_import.extraction_errors import CreatorImportError, LLMRequestError
 from creator_import.llm_client import DeepSeekClient
 from models import DirectorOutput, ProjectFacts, VerificationReport
+from story_generation.models import GenerationResult, StoryboardDraft
 from verification_service import ReportWriteError, write_report
 
 
@@ -50,6 +53,9 @@ class MainWindow(ctk.CTk):
         self._log, self._controller, self._analysis = _logger(), VerificationController(), AnalysisController()
         self._creator_generation_events: queue.Queue[dict[str, object]] = queue.Queue()
         self.creator_generation_controller = CreatorGenerationController(self._creator_generation_events)
+        self._creator_history_store = CreatorHistoryStore()
+        self._last_creator_result = None
+        self._active_creator_request = None
         self._report: VerificationReport | None = None
         self._creator_facts: ProjectFacts | None = None
         self._creator_output: DirectorOutput | None = None
@@ -84,6 +90,12 @@ class MainWindow(ctk.CTk):
 
     def _build_creator_generation(self) -> None:
         host = self.creator_generation_host
+        navigation = ctk.CTkFrame(host, fg_color="transparent")
+        navigation.grid(row=1, column=0, padx=20, pady=(0, 8), sticky="ew")
+        ctk.CTkButton(navigation, text="创意输入", command=self._show_creator_generation_input).pack(side="left")
+        ctk.CTkButton(navigation, text="历史记录", command=self._show_creator_history).pack(side="left", padx=6)
+        self.creator_generation_last_button = ctk.CTkButton(navigation, text="查看上次结果", command=self._show_last_creator_result, state="disabled")
+        self.creator_generation_last_button.pack(side="right")
         self.creator_generation_view = CreatorGenerationView(host, self._on_creator_generate)
         self.creator_generation_result_host = ctk.CTkFrame(host)
         self.creator_generation_result_host.grid_rowconfigure(0, weight=1)
@@ -93,6 +105,7 @@ class MainWindow(ctk.CTk):
         ctk.CTkButton(self.creator_generation_result_host, text="返回创意输入", command=self._show_creator_generation_input).grid(
             row=1, column=0, padx=20, pady=(0, 16), sticky="e"
         )
+        self.creator_history_view = CreatorHistoryView(host, self._creator_history_store, self._show_history_result, self._delete_history_record)
         self._show_creator_generation_input()
 
     def _build_professional(self) -> None:
@@ -199,6 +212,7 @@ class MainWindow(ctk.CTk):
             return
         self.creator_generation_view.set_api_configured(True)
         self.creator_generation_result_frame.clear()
+        self._active_creator_request = {"idea": idea, "style": style, "goal": goal}
         self.creator_generation_view.set_busy(True)
         try:
             started = self.creator_generation_controller.start(idea=idea, style=style, goal=goal, api_key=api_key)
@@ -213,11 +227,37 @@ class MainWindow(ctk.CTk):
     def _show_creator_generation_input(self) -> None:
         self.creator_generation_view.grid_remove()
         self.creator_generation_result_host.grid_remove()
+        self.creator_history_view.grid_remove()
         self.creator_generation_view.grid(row=0, column=0, sticky="nsew")
 
     def _show_creator_generation_result(self) -> None:
         self.creator_generation_view.grid_remove()
+        self.creator_history_view.grid_remove()
         self.creator_generation_result_host.grid(row=0, column=0, sticky="nsew")
+
+    def _show_creator_history(self) -> None:
+        self.creator_generation_view.grid_remove(); self.creator_generation_result_host.grid_remove()
+        self.creator_history_view.refresh(); self.creator_history_view.grid(row=0, column=0, sticky="nsew")
+
+    def _show_last_creator_result(self) -> None:
+        if self._last_creator_result is not None:
+            self.creator_generation_result_frame.show_result(self._last_creator_result)
+            self._show_creator_generation_result()
+
+    def _delete_history_record(self, history_id: str) -> None:
+        self._creator_history_store.delete(history_id)
+
+    def _show_history_result(self, record: dict) -> None:
+        try:
+            result = GenerationResult.model_validate(record["result"])
+            if isinstance(result.artifact, dict):
+                result = result.model_copy(update={"artifact": StoryboardDraft.model_validate(result.artifact)})
+        except Exception:
+            return
+        self._last_creator_result = result
+        self.creator_generation_last_button.configure(state="normal")
+        self.creator_generation_result_frame.show_result(result)
+        self._show_creator_generation_result()
 
     def _show_creator(self, widget) -> None:
         for child in self.creator_host.winfo_children(): child.grid_remove()
@@ -298,7 +338,18 @@ class MainWindow(ctk.CTk):
                     self.creator_generation_view.set_busy(True, str(event.get("message", "")))
                 elif event_type == "complete":
                     self.creator_generation_view.set_busy(False, "生成完成")
-                    self.creator_generation_result_frame.show_result(event["result"])
+                    result = event["result"]
+                    self._last_creator_result = result
+                    if hasattr(self, "creator_generation_last_button"):
+                        self.creator_generation_last_button.configure(state="normal")
+                    if getattr(self, "_active_creator_request", None) is not None:
+                        try:
+                            self._creator_history_store.save(**self._active_creator_request, result=result)
+                        except Exception:
+                            self.creator_generation_view.show_error("历史记录保存失败，但生成结果可正常查看。")
+                    if hasattr(self, "creator_history_view"):
+                        self.creator_history_view.refresh()
+                    self.creator_generation_result_frame.show_result(result)
                     self._show_creator_generation_result()
                 elif event_type == "error":
                     self.creator_generation_view.set_busy(False, "生成失败")
