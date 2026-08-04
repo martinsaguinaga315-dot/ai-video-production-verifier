@@ -16,6 +16,9 @@ from creator_desktop.app_paths import log_dir
 from creator_desktop.app_paths import is_smoke_test, resource_path
 from app_version import APP_NAME
 from creator_desktop.creator_result import CreatorResultFrame
+from creator_desktop.creator_generation_controller import CreatorGenerationController
+from creator_desktop.creator_generation_result import CreatorGenerationResultFrame
+from creator_desktop.creator_generation_view import CreatorGenerationView
 from creator_desktop.credentials import CredentialError, has_saved_api_key, load_api_key
 from creator_desktop.director_review import DirectorReviewFrame
 from creator_desktop.facts_review import FactsReviewFrame, show_json_dialog
@@ -45,6 +48,8 @@ class MainWindow(ctk.CTk):
         self.geometry("1080x760")
         self.minsize(920, 650)
         self._log, self._controller, self._analysis = _logger(), VerificationController(), AnalysisController()
+        self._creator_generation_events: queue.Queue[dict[str, object]] = queue.Queue()
+        self.creator_generation_controller = CreatorGenerationController(self._creator_generation_events)
         self._report: VerificationReport | None = None
         self._creator_facts: ProjectFacts | None = None
         self._creator_output: DirectorOutput | None = None
@@ -63,16 +68,32 @@ class MainWindow(ctk.CTk):
         self.grid_rowconfigure(2, weight=1)
         ctk.CTkLabel(self, text="AI视频制作核验器", font=ctk.CTkFont(size=24, weight="bold")).grid(row=0, column=0, padx=24, pady=(16, 4), sticky="w")
         self.mode = ctk.StringVar(value="普通创作者模式")
-        ctk.CTkSegmentedButton(self, values=["普通创作者模式", "专业JSON模式"], variable=self.mode, command=self._switch_mode).grid(row=1, column=0, padx=24, pady=6, sticky="w")
-        self.creator_host, self.professional_host = ctk.CTkFrame(self), ctk.CTkFrame(self)
+        ctk.CTkSegmentedButton(self, values=["AI 创作生成", "普通创作者模式", "专业JSON模式"], variable=self.mode, command=self._switch_mode).grid(row=1, column=0, padx=24, pady=6, sticky="w")
+        self.creator_generation_host, self.creator_host, self.professional_host = ctk.CTkFrame(self), ctk.CTkFrame(self), ctk.CTkFrame(self)
+        self.creator_generation_host.grid(row=2, column=0, padx=16, pady=4, sticky="nsew")
         self.creator_host.grid(row=2, column=0, padx=16, pady=4, sticky="nsew")
         self.professional_host.grid(row=2, column=0, padx=16, pady=4, sticky="nsew")
+        self.creator_generation_host.grid_rowconfigure(0, weight=1); self.creator_generation_host.grid_columnconfigure(0, weight=1)
         self.creator_host.grid_rowconfigure(0, weight=1); self.creator_host.grid_columnconfigure(0, weight=1)
         self.professional_host.grid_rowconfigure(4, weight=1); self.professional_host.grid_columnconfigure(0, weight=1)
         self.creator_view = NaturalLanguageView(self.creator_host, self._start_creator_analysis)
         self.creator_view.grid(row=0, column=0, sticky="nsew")
+        self._build_creator_generation()
         self._build_professional()
         self._switch_mode("普通创作者模式")
+
+    def _build_creator_generation(self) -> None:
+        host = self.creator_generation_host
+        self.creator_generation_view = CreatorGenerationView(host, self._on_creator_generate)
+        self.creator_generation_result_host = ctk.CTkFrame(host)
+        self.creator_generation_result_host.grid_rowconfigure(0, weight=1)
+        self.creator_generation_result_host.grid_columnconfigure(0, weight=1)
+        self.creator_generation_result_frame = CreatorGenerationResultFrame(self.creator_generation_result_host)
+        self.creator_generation_result_frame.grid(row=0, column=0, sticky="nsew")
+        ctk.CTkButton(self.creator_generation_result_host, text="返回创意输入", command=self._show_creator_generation_input).grid(
+            row=1, column=0, padx=20, pady=(0, 16), sticky="e"
+        )
+        self._show_creator_generation_input()
 
     def _build_professional(self) -> None:
         host = self.professional_host
@@ -100,10 +121,15 @@ class MainWindow(ctk.CTk):
         ctk.CTkButton(parent, text="清除", width=60, command=lambda: variable.set("")).grid(row=row, column=3, padx=(0, 12), pady=8)
 
     def _switch_mode(self, value: str) -> None:
-        if value == "普通创作者模式":
-            self.professional_host.grid_remove(); self.creator_host.grid()
+        self.creator_generation_host.grid_remove()
+        self.creator_host.grid_remove()
+        self.professional_host.grid_remove()
+        if value == "AI 创作生成":
+            self.creator_generation_host.grid()
+        elif value == "普通创作者模式":
+            self.creator_host.grid()
         else:
-            self.creator_host.grid_remove(); self.professional_host.grid()
+            self.professional_host.grid()
 
     def _choose_facts(self) -> None:
         path = filedialog.askopenfilename(filetypes=[("JSON 文件", "*.json")])
@@ -124,6 +150,8 @@ class MainWindow(ctk.CTk):
         try: configured = has_saved_api_key()
         except CredentialError: configured = False
         self.api_status.set(main_api_status(configured))
+        if hasattr(self, "creator_generation_view"):
+            self.creator_generation_view.set_api_configured(configured)
 
     def _offer_first_run_settings(self) -> None:
         try: missing = not has_saved_api_key()
@@ -157,6 +185,39 @@ class MainWindow(ctk.CTk):
             messagebox.showwarning("需要API Key", "自然语言解析需要DeepSeek API Key。\n请先完成API设置，或切换到专业JSON模式使用本地硬规则。", parent=self); return
         self._creator_script, self._creator_director, self._creator_client = script, director, client
         if self._analysis.start_facts(script, client): self.creator_view.set_busy(True, "正在读取剧本")
+
+    def _on_creator_generate(self, idea: str, style: str | None, goal: str | None) -> None:
+        self.creator_generation_view.clear_error()
+        try:
+            api_key = load_api_key()
+        except CredentialError:
+            api_key = None
+        if not api_key:
+            self.creator_generation_view.set_api_configured(False)
+            self.creator_generation_view.show_error("请先在 API 设置中保存 DeepSeek API Key。")
+            self._open_api_settings()
+            return
+        self.creator_generation_view.set_api_configured(True)
+        self.creator_generation_result_frame.clear()
+        self.creator_generation_view.set_busy(True)
+        try:
+            started = self.creator_generation_controller.start(idea=idea, style=style, goal=goal, api_key=api_key)
+        except ValueError as exc:
+            self.creator_generation_view.set_busy(False)
+            self.creator_generation_view.show_error(str(exc))
+            return
+        if not started:
+            self.creator_generation_view.set_busy(True, "正在生成 Storyboard，必要时将执行一次 AI 修正。")
+            self.creator_generation_view.show_error("已有生成任务正在运行。")
+
+    def _show_creator_generation_input(self) -> None:
+        self.creator_generation_view.grid_remove()
+        self.creator_generation_result_host.grid_remove()
+        self.creator_generation_view.grid(row=0, column=0, sticky="nsew")
+
+    def _show_creator_generation_result(self) -> None:
+        self.creator_generation_view.grid_remove()
+        self.creator_generation_result_host.grid(row=0, column=0, sticky="nsew")
 
     def _show_creator(self, widget) -> None:
         for child in self.creator_host.winfo_children(): child.grid_remove()
@@ -205,7 +266,7 @@ class MainWindow(ctk.CTk):
         except (ReportWriteError, OSError): messagebox.showerror("导出失败", "无法写入文件，请检查保存位置和权限。", parent=self)
 
     def _poll_events(self) -> None:
-        self._poll_professional_events(); self._poll_creator_events()
+        self._poll_professional_events(); self._poll_creator_events(); self._poll_creator_generation_events()
         if self.winfo_exists(): self.after(100, self._poll_events)
 
     def _poll_professional_events(self) -> None:
@@ -226,6 +287,23 @@ class MainWindow(ctk.CTk):
                 elif kind == "director_ready": self.creator_view.set_busy(False); self._show_director_review(payload)
                 elif kind == "verification_complete": self.creator_view.set_busy(False); self._show_creator_result(payload)
                 elif kind == "error": self.creator_view.set_busy(False); self._return_to_creator(); messagebox.showerror("自动结构化失败", self._creator_error_text(payload), parent=self)
+        except queue.Empty: pass
+
+    def _poll_creator_generation_events(self) -> None:
+        try:
+            while True:
+                event = self._creator_generation_events.get_nowait()
+                event_type = event.get("type")
+                if event_type == "status":
+                    self.creator_generation_view.set_busy(True, str(event.get("message", "")))
+                elif event_type == "complete":
+                    self.creator_generation_view.set_busy(False, "生成完成")
+                    self.creator_generation_result_frame.show_result(event["result"])
+                    self._show_creator_generation_result()
+                elif event_type == "error":
+                    self.creator_generation_view.set_busy(False, "生成失败")
+                    self.creator_generation_view.show_error(str(event.get("message", "生成失败，请稍后重试。")))
+                    self._show_creator_generation_input()
         except queue.Empty: pass
 
     def _creator_error_text(self, error: Exception) -> str:
