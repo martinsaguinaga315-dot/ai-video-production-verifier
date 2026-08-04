@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$SkipInstaller)
+param()
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -14,6 +14,34 @@ $env:PYTHONIOENCODING = 'utf-8'
 function Invoke-Checked([string]$File, [string[]]$Arguments) {
     & $File @Arguments
     if ($LASTEXITCODE -ne 0) { throw "Command failed ($LASTEXITCODE): $File $Arguments" }
+}
+
+function Find-IsccExecutable {
+    $command = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+    if ($command -and (Test-Path -LiteralPath $command.Source)) { return $command.Source }
+
+    $candidates = @(
+        'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
+        'C:\Program Files\Inno Setup 6\ISCC.exe'
+    )
+    if ($env:LOCALAPPDATA) { $candidates += (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe') }
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate) { return $candidate }
+    }
+
+    $uninstallRoots = @(
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKCU:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    )
+    foreach ($entry in Get-ItemProperty -Path $uninstallRoots -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match '^Inno Setup' }) {
+        if ($entry.InstallLocation) {
+            $candidate = Join-Path $entry.InstallLocation 'ISCC.exe'
+            if (Test-Path -LiteralPath $candidate) { return $candidate }
+        }
+    }
+    return $null
 }
 
 $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
@@ -41,18 +69,15 @@ Invoke-Checked $buildPython @('-m', 'PyInstaller', '--noconfirm', '--clean', 'pa
 Invoke-Checked $buildPython @('scripts\smoke_frozen_creator_ui.py')
 & (Join-Path $PSScriptRoot 'package_portable.ps1') -DistRoot $distDir -OutputRoot $releaseDir -Version $version -AppName $appName | Out-Host
 
-$installerBuilt = $false
-if (-not $SkipInstaller) {
-    $iscc = @('C:\Program Files (x86)\Inno Setup 6\ISCC.exe', 'C:\Program Files\Inno Setup 6\ISCC.exe') | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-    if ($iscc) {
-        $installerStage = Join-Path $releaseDir 'installer-stage'
-        New-Item -ItemType Directory -Force -Path $installerStage | Out-Null
-        $installerSource = Join-Path $distDir $appName
-        Get-ChildItem -LiteralPath $installerSource -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $installerStage -Recurse -Force }
-        Invoke-Checked $iscc @("/DMyAppVersion=$version", "/DMyAppName=$appName", 'packaging\installer.iss'); $installerBuilt = $true
-    }
-    else { Write-Warning 'Inno Setup 6 was not found. Portable build completed; installer was not generated.' }
-}
+$iscc = Find-IsccExecutable
+if (-not $iscc) { throw 'Inno Setup 6 compiler (ISCC.exe) was not found. Installer is required for this release build.' }
+Write-Output "Using Inno Setup compiler: $iscc"
+$installerStage = Join-Path $releaseDir 'installer-stage'
+New-Item -ItemType Directory -Force -Path $installerStage | Out-Null
+$installerSource = Join-Path $distDir $appName
+Get-ChildItem -LiteralPath $installerSource -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $installerStage -Recurse -Force }
+Invoke-Checked $iscc @("/DMyAppVersion=$version", "/DMyAppName=$appName", 'packaging\installer.iss')
+$installerBuilt = $true
 
 $portable = Join-Path $releaseDir "AI-Video-Production-Verifier-Portable-v$version.zip"
 $setup = Join-Path $releaseDir "AI-Video-Production-Verifier-Setup-v$version.exe"
