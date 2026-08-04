@@ -18,6 +18,7 @@ DefaultGroupName={#MyAppName}
 OutputBaseFilename=AI-Video-Production-Verifier-Setup-v{#MyAppVersion}
 OutputDir=..\release
 SetupIconFile=..\assets\app.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 LicenseFile=..\LICENSE
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible

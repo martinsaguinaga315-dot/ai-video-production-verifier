@@ -121,6 +121,8 @@ def test_frozen_paths_are_reused_for_portable_and_installer_staging() -> None:
     assert "[string]$FrozenAppDir" in portable
     assert "[string]$FrozenExe" in portable
     assert "#ifndef MyAppExeName" in installer
+    assert "UninstallDisplayIcon={app}\\{#MyAppExeName}" in installer
+    assert "UninstallDisplayIcon={app}\\AI视频制作核验器.exe" not in installer
     assert "/DMyAppExeName=$([System.IO.Path]::GetFileName($frozenExe))" in windows
 
 
