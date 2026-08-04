@@ -44,13 +44,29 @@ function Find-IsccExecutable {
     return $null
 }
 
+function Find-FrozenApplication([string]$DistRoot) {
+    $candidates = @(
+        Get-ChildItem -LiteralPath $DistRoot -Directory | ForEach-Object {
+            Get-ChildItem -LiteralPath $_.FullName -File -Filter '*.exe'
+        }
+    )
+    if ($candidates.Count -ne 1) {
+        $candidateList = if ($candidates.Count) { ($candidates.FullName -join [Environment]::NewLine) } else { '<none>' }
+        throw "Expected exactly one top-level frozen EXE under dist directories; found $($candidates.Count):`n$candidateList"
+    }
+
+    $frozenExe = $candidates[0]
+    return [pscustomobject]@{
+        FrozenAppDir = $frozenExe.Directory.FullName
+        FrozenExe = $frozenExe.FullName
+    }
+}
+
 $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
 if (-not $pyLauncher) { throw 'Python 3.11 is required, but the Windows py launcher is unavailable. Install Python 3.11, then rerun packaging/build_windows.ps1.' }
 $pythonExe = (& $pyLauncher.Source -3.11 -c "import sys; print(sys.executable)" 2>$null).Trim()
 if (-not $pythonExe) { throw 'Python 3.11 is required. Install Python 3.11, then rerun packaging/build_windows.ps1.' }
 $version = (& $pythonExe -c "from app_version import VERSION; print(VERSION)").Trim()
-$appName = (& $pythonExe -c "from app_version import APP_NAME; print(APP_NAME)").Trim()
-if ([string]::IsNullOrWhiteSpace($appName)) { throw 'Application name metadata was empty.' }
 $venv = Join-Path $root '.build-venv'
 $buildDir, $distDir, $releaseDir = (Join-Path $root 'build'), (Join-Path $root 'dist'), (Join-Path $root 'release')
 foreach ($path in @($venv, $buildDir, $distDir, $releaseDir)) { if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force } }
@@ -65,18 +81,22 @@ Invoke-Checked $buildPython @('verify.py', 'examples\clean\facts.json', 'example
 & $buildPython verify.py examples\unknown_character_error\facts.json examples\unknown_character_error\director_output.json --compact
 if ($LASTEXITCODE -ne 1) { throw "Unknown-character CLI regression returned $LASTEXITCODE, expected 1." }
 Invoke-Checked $buildPython @('-m', 'PyInstaller', '--noconfirm', '--clean', 'packaging\windows.spec')
-& (Join-Path $PSScriptRoot 'verify_build.ps1') -DistRoot $distDir -AppName $appName
+$frozenApplication = Find-FrozenApplication -DistRoot $distDir
+$frozenAppDir, $frozenExe = $frozenApplication.FrozenAppDir, $frozenApplication.FrozenExe
+Write-Output "Frozen app directory: $frozenAppDir"
+Write-Output "Frozen executable: $frozenExe"
+$smokeDataDir = Join-Path $buildDir 'frozen-smoke-appdata'
+& (Join-Path $PSScriptRoot 'verify_build.ps1') -ExePath $frozenExe -SmokeDataDir $smokeDataDir
 Invoke-Checked $buildPython @('scripts\smoke_frozen_creator_ui.py')
-& (Join-Path $PSScriptRoot 'package_portable.ps1') -DistRoot $distDir -OutputRoot $releaseDir -Version $version -AppName $appName | Out-Host
+& (Join-Path $PSScriptRoot 'package_portable.ps1') -FrozenAppDir $frozenAppDir -FrozenExe $frozenExe -OutputRoot $releaseDir -Version $version | Out-Host
 
 $iscc = Find-IsccExecutable
 if (-not $iscc) { throw 'Inno Setup 6 compiler (ISCC.exe) was not found. Installer is required for this release build.' }
 Write-Output "Using Inno Setup compiler: $iscc"
 $installerStage = Join-Path $releaseDir 'installer-stage'
 New-Item -ItemType Directory -Force -Path $installerStage | Out-Null
-$installerSource = Join-Path $distDir $appName
-Get-ChildItem -LiteralPath $installerSource -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $installerStage -Recurse -Force }
-Invoke-Checked $iscc @("/DMyAppVersion=$version", "/DMyAppName=$appName", 'packaging\installer.iss')
+Get-ChildItem -LiteralPath $frozenAppDir -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $installerStage -Recurse -Force }
+Invoke-Checked $iscc @("/DMyAppVersion=$version", "/DMyAppExeName=$([System.IO.Path]::GetFileName($frozenExe))", 'packaging\installer.iss')
 $installerBuilt = $true
 
 $portable = Join-Path $releaseDir "AI-Video-Production-Verifier-Portable-v$version.zip"

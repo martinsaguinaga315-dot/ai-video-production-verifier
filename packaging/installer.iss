@@ -4,8 +4,10 @@
 #ifndef MyAppName
   #define MyAppName "AI Video Production Verifier"
 #endif
+#ifndef MyAppExeName
+  #define MyAppExeName MyAppName + ".exe"
+#endif
 #define MyAppPublisher "Muzifan AIGC"
-#define MyAppExeName MyAppName + ".exe"
 [Setup]
 AppId={{2C5303E9-94B6-4F8C-A4D7-8CD9A4EED679}
 AppName={#MyAppName}
