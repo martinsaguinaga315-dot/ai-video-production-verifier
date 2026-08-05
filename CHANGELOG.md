@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## v0.3.1 Windows Release acceptance and publishing safety
+
+- Added repeatable Windows Release acceptance for Setup, Portable ZIP, SHA256SUMS, manifest metadata, UTF-8 creator history, and API-key leakage checks.
+- Added a GitHub Actions release gate plus pull-request and manual dry-run paths; only `v*` tag pushes can enter the write-permission publish job.
+- Preserved Creator history format, API-key storage, install location, and Creator functionality.
+
 ## v0.3.0 Public Beta / release candidate
 
 - Added AI Creator generation, strict DeepSeek JSON handling, StoryboardBuilder normalization, validation, and one bounded AI repair.

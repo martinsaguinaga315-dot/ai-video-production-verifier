@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "0.3.0"
+  #error MyAppVersion must be supplied by packaging/build_windows.ps1
 #endif
 #ifndef MyAppName
   #define MyAppName "AI Video Production Verifier"

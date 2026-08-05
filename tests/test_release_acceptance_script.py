@@ -8,10 +8,11 @@ from pathlib import Path
 
 import pytest
 
+from app_version import VERSION
+
 
 SCRIPT = Path("scripts/verify_windows_release.ps1")
 PS = shutil.which("pwsh") or shutil.which("powershell")
-VERSION = "0.3.0"
 COMMIT = "93ccc7877e64407950fbb85301ff68b33ee37ee1"
 
 

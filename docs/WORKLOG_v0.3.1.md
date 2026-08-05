@@ -27,3 +27,12 @@
 - 删除 `publish_release` 手工发布入口。构建/验收 job 使用只读权限；正式发布移至依赖验收成功的独立 job，且只允许 `v*` 标签 push 使用写权限。
 - 修改工作流结构测试，覆盖 PR/dry-run 触发、严格标签发布条件、权限分离、验收顺序和 token 隔离。
 - 测试结果：现有本地验收测试 `8 passed`；工作流结构测试 `5 passed`；关联发布测试 `32 passed`；完整 pytest `250 passed`。
+
+## v0.3.1-04 版本升级与发布准备
+
+- 背景：为正式标签发布准备统一版本、发布说明和可追溯的 Release 资产命名。
+- 版本升级位置：`app_version.py` 的 `VERSION` 从 `0.3.0` 升级为 `0.3.1`；Inno Setup 不再保留独立版本默认值，构建脚本从版本单一来源传入版本。
+- 新增发布文档：`docs/RELEASE_v0.3.1.md`。
+- GitHub Windows Runner dry-run：PR #1 的 `release_gate` 已通过，`publish` 被跳过，生成 artifact `windows-release-dry-run-v0.3.0`；版本升级后的下一次 PR dry-run 应生成 `windows-release-dry-run-v0.3.1`。
+- 尚未完成：最终合并、创建标签和正式 GitHub Release。
+- 验证结果：版本相关测试 `7 passed`；release acceptance 测试 `8 passed`；workflow 结构测试 `5 passed`；关联 packaging/release 测试 `33 passed`；完整 pytest `251 passed`。未运行完整本机 Windows 构建：该脚本会清理构建目录、联网安装依赖并执行冻结程序 smoke，实际 Windows Runner dry-run 结果已记录在发布说明中。
