@@ -1,0 +1,38 @@
+# v0.3.1 工作记录
+
+- 基线提交：`93ccc7877e64407950fbb85301ff68b33ee37ee1`（分支 `feature/v0.3.1`）。
+- 背景：v0.3.0 发布后需要人工分别核对 GitHub Release、哈希、manifest、便携 ZIP、安装版与创作历史安全性，步骤易遗漏且编码行为不一致。
+- v0.3.0 人工验收发现的问题：哈希核对、发布 metadata、ZIP 结构和历史 JSON/API Key 检查分散，且 PowerShell 5.1 读取 UTF-8 无 BOM 文件有误解码风险。
+- 修改文件：新增 `scripts/verify_windows_release.ps1`、`tests/test_release_acceptance_script.py`、`docs/RELEASE_ACCEPTANCE_WINDOWS.md` 与本文档。
+- 测试结果（人工审核修复后）：新增验收测试 `8 passed`；关联测试 `25 passed`；完整 pytest `245 passed`；`git diff --check` 通过。
+- 尚未完成事项：人工审核；不提交、不推送、不创建标签或发布分支。
+
+## 人工审核修复
+
+- Windows PowerShell 5.1 控制台输出不能假定为 UTF-8；测试改为捕获原始 bytes，并依次尝试 UTF-8、系统首选编码和 `mbcs`，最后以替换字符兜底。
+- JSON 文件读取仍明确指定 `-Encoding UTF8`，不依赖控制台代码页。
+- 安装程序 FileVersion/ProductVersion 改为可选增强检查：没有版本资源不会阻止验收；可读取且明确不兼容时才失败。
+- 补充仅缺失 release manifest 的失败测试，并保留中文路径、UTF-8 无 BOM 中文历史 JSON 与疑似 API Key 的隔离测试。
+
+## v0.3.1-02 CI 验收门禁
+
+- 修改 `.github/workflows/release-windows.yml`：在构建并生成安装包、Portable ZIP、SHA256SUMS 和 manifest 后，正式 Release 上传前运行 Windows 验收脚本。
+- CI 使用工作流既有的 `VERSION` 环境变量和当前 `${{ github.sha }}`；跳过历史与安装版检查，只验证可重复构建的发布资产。
+- 新增 `tests/test_release_workflow_acceptance.py`，覆盖 PowerShell 调用、必需参数、版本/提交来源、无绕过配置以及验收步骤先于正式上传。
+- 测试结果：现有本地验收测试 `8 passed`；新增工作流测试 `2 passed`；关联发布测试 `29 passed`；完整 pytest `247 passed`。
+
+## v0.3.1-03 安全 dry-run
+
+- `release-windows.yml` 保留 `workflow_dispatch` 但固定为 dry-run，并新增面向 `main` 的 `pull_request` 触发，供 Draft PR 在真实 Windows Runner 上完成合并前验证。
+- 删除 `publish_release` 手工发布入口。构建/验收 job 使用只读权限；正式发布移至依赖验收成功的独立 job，且只允许 `v*` 标签 push 使用写权限。
+- 修改工作流结构测试，覆盖 PR/dry-run 触发、严格标签发布条件、权限分离、验收顺序和 token 隔离。
+- 测试结果：现有本地验收测试 `8 passed`；工作流结构测试 `5 passed`；关联发布测试 `32 passed`；完整 pytest `250 passed`。
+
+## v0.3.1-04 版本升级与发布准备
+
+- 背景：为正式标签发布准备统一版本、发布说明和可追溯的 Release 资产命名。
+- 版本升级位置：`app_version.py` 的 `VERSION` 从 `0.3.0` 升级为 `0.3.1`；Inno Setup 不再保留独立版本默认值，构建脚本从版本单一来源传入版本。
+- 新增发布文档：`docs/RELEASE_v0.3.1.md`。
+- GitHub Windows Runner dry-run：PR #1 的 `release_gate` 已通过，`publish` 被跳过，生成 artifact `windows-release-dry-run-v0.3.0`；版本升级后的下一次 PR dry-run 应生成 `windows-release-dry-run-v0.3.1`。
+- 尚未完成：最终合并、创建标签和正式 GitHub Release。
+- 验证结果：版本相关测试 `7 passed`；release acceptance 测试 `8 passed`；workflow 结构测试 `5 passed`；关联 packaging/release 测试 `33 passed`；完整 pytest `251 passed`。未运行完整本机 Windows 构建：该脚本会清理构建目录、联网安装依赖并执行冻结程序 smoke，实际 Windows Runner dry-run 结果已记录在发布说明中。

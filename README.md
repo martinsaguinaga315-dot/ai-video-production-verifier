@@ -7,10 +7,10 @@ It checks locked facts against a proposed director output before image or video 
 ## Windows quick start
 
 The Windows installer and portable ZIP build pipeline is ready for the
-`v0.3.0` Public Beta / release candidate. It is not a published GitHub Release
+`v0.3.1` Windows Release acceptance and publishing-safety update. It is not a published GitHub Release
 yet.
 
-1. Open GitHub Releases when `v0.3.0` is published.
+1. Open GitHub Releases when `v0.3.1` is published.
 2. Download the Setup installer, or download the Portable ZIP and extract it fully.
 3. Start **AI视频制作核验器** from the Start menu, desktop shortcut, or extracted folder.
 4. On first use, enter your own DeepSeek API Key if you need creator mode or semantic auditing.
@@ -65,12 +65,12 @@ Optional DeepSeek semantic auditing adds:
 
 ## Current status
 
-Version: `0.3.0`
+Version: `0.3.1`
 
 Current checked baseline:
 
 - 2 versioned CLI example cases
-- 219 automated pytest checks passed for the v0.3.0 release-hardening baseline
+- See [v0.3.1 release notes](docs/RELEASE_v0.3.1.md) for the checked release baseline
 - no live semantic API calls in automated tests
 
 The semantic layer is experimental. The deterministic layer is the primary stable interface.
