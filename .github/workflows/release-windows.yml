@@ -3,23 +3,34 @@ name: Release Windows
 on:
   push:
     tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  release_gate:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Resolve and verify version
+        id: version
         shell: pwsh
         run: |
-          $version=(python -c "from app_version import VERSION; print(VERSION)").Trim(); $tag='${{ github.ref_name }}'
-          if($tag -ne "v$version"){throw "Tag $tag does not match app version $version"}; "VERSION=$version" >> $env:GITHUB_ENV
+          $version=(python -c "from app_version import VERSION; print(VERSION)").Trim()
+          if ('${{ github.event_name }}' -eq 'push') {
+            $tag='${{ github.ref_name }}'
+            if($tag -ne "v$version"){throw "Tag $tag does not match app version $version"}
+          }
+          "VERSION=$version" >> $env:GITHUB_ENV
+          "version=$version" >> $env:GITHUB_OUTPUT
       - name: Install Inno Setup
         run: choco install innosetup --no-progress --yes
       - name: Rebuild and verify release artifacts
@@ -37,15 +48,40 @@ jobs:
             -ExpectedCommit "${{ github.sha }}" `
             -SkipHistoryCheck `
             -SkipInstalledAppCheck
-      - name: Publish GitHub Release assets
-        uses: softprops/action-gh-release@v2
+      - name: Upload verified Windows build artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: AI Video Production Verifier v${{ env.VERSION }}
-          body: |
-            Windows x64 desktop distribution for AI Video Production Verifier.
-            Includes creator mode, professional JSON mode, local hard rules, optional DeepSeek semantic audit, installer, portable ZIP, privacy notes, and known limitations.
-          files: |
+          name: windows-release-${{ github.event_name != 'push' && 'dry-run' || 'release' }}-v${{ env.VERSION }}
+          path: |
             release/AI-Video-Production-Verifier-Portable-v${{ env.VERSION }}.zip
             release/AI-Video-Production-Verifier-Setup-v${{ env.VERSION }}.exe
             release/SHA256SUMS.txt
             release/release_manifest_v${{ env.VERSION }}.json
+
+  publish:
+    needs: release_gate
+    if: >-
+      github.event_name == 'push' &&
+      github.ref_type == 'tag' &&
+      startsWith(github.ref_name, 'v')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified Windows build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-release-release-v${{ needs.release_gate.outputs.version }}
+          path: release
+      - name: Publish GitHub Release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          name: AI Video Production Verifier v${{ needs.release_gate.outputs.version }}
+          body: |
+            Windows x64 desktop distribution for AI Video Production Verifier.
+            Includes creator mode, professional JSON mode, local hard rules, optional DeepSeek semantic audit, installer, portable ZIP, privacy notes, and known limitations.
+          files: |
+            release/AI-Video-Production-Verifier-Portable-v${{ needs.release_gate.outputs.version }}.zip
+            release/AI-Video-Production-Verifier-Setup-v${{ needs.release_gate.outputs.version }}.exe
+            release/SHA256SUMS.txt
+            release/release_manifest_v${{ needs.release_gate.outputs.version }}.json

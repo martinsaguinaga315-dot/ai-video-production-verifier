@@ -20,3 +20,10 @@
 - CI 使用工作流既有的 `VERSION` 环境变量和当前 `${{ github.sha }}`；跳过历史与安装版检查，只验证可重复构建的发布资产。
 - 新增 `tests/test_release_workflow_acceptance.py`，覆盖 PowerShell 调用、必需参数、版本/提交来源、无绕过配置以及验收步骤先于正式上传。
 - 测试结果：现有本地验收测试 `8 passed`；新增工作流测试 `2 passed`；关联发布测试 `29 passed`；完整 pytest `247 passed`。
+
+## v0.3.1-03 安全 dry-run
+
+- `release-windows.yml` 保留 `workflow_dispatch` 但固定为 dry-run，并新增面向 `main` 的 `pull_request` 触发，供 Draft PR 在真实 Windows Runner 上完成合并前验证。
+- 删除 `publish_release` 手工发布入口。构建/验收 job 使用只读权限；正式发布移至依赖验收成功的独立 job，且只允许 `v*` 标签 push 使用写权限。
+- 修改工作流结构测试，覆盖 PR/dry-run 触发、严格标签发布条件、权限分离、验收顺序和 token 隔离。
+- 测试结果：现有本地验收测试 `8 passed`；工作流结构测试 `5 passed`；关联发布测试 `32 passed`；完整 pytest `250 passed`。

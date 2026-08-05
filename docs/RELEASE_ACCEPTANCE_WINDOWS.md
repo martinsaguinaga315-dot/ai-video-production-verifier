@@ -25,3 +25,9 @@ Windows PowerShell 5.1 的控制台 stdout/stderr 可能采用当前 Windows 代
 本地验收可按需检查历史记录或安装版；CI 只检查可重复构建的 Release 资产。在正式 Windows Release 工作流中，资产、SHA256SUMS 和 manifest 生成后，会以 `powershell.exe` 运行验收脚本，并传入 `-SkipHistoryCheck` 与 `-SkipInstalledAppCheck`。这避免读取 runner 上无关的用户历史目录或启动 GUI。
 
 正式 GitHub Release 上传位于验收步骤之后：验收失败会使 job 失败，因而不会发布正式资产。在 Actions 日志中搜索 `RELEASE_ACCEPTANCE_RESULT`；只有出现 `RELEASE_ACCEPTANCE_RESULT = OK` 才表示允许进入发布步骤。
+
+## GitHub Actions dry-run
+
+`workflow_dispatch` 只有工作流文件进入默认分支后才能在 GitHub 页面手工使用，且它永远是 dry-run：会测试、构建 Windows 程序、生成安装包、Portable ZIP、SHA256SUMS 和 manifest，并执行验收；不会创建标签、GitHub Release 或正式 Release assets。验收通过后会上传名称含 `dry-run` 的普通 Actions artifact，便于人工检查。
+
+合并前应从功能分支建立面向 `main` 的 Draft Pull Request；普通 `pull_request` 会在真实 Windows Runner 上执行同一套 dry-run 门禁，无写权限也不会发布。可在该运行日志搜索 `RELEASE_ACCEPTANCE_RESULT = OK`。不再支持 `publish_release=true` 手工发布；只有 `v*` 标签 push 才能进入独立的发布 job。构建/验收 job 仅有 `contents: read`，写权限只授予依赖其成功结果的标签发布 job。
