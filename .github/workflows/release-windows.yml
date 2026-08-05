@@ -25,6 +25,18 @@ jobs:
       - name: Rebuild and verify release artifacts
         shell: pwsh
         run: ./packaging/build_windows.ps1
+      - name: Run Windows Release acceptance gate
+        shell: powershell
+        run: |
+          powershell.exe `
+            -NoProfile `
+            -ExecutionPolicy Bypass `
+            -File scripts/verify_windows_release.ps1 `
+            -ReleaseDirectory release `
+            -ExpectedVersion "${{ env.VERSION }}" `
+            -ExpectedCommit "${{ github.sha }}" `
+            -SkipHistoryCheck `
+            -SkipInstalledAppCheck
       - name: Publish GitHub Release assets
         uses: softprops/action-gh-release@v2
         with:

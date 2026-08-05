@@ -19,3 +19,9 @@ PowerShell 5.1 对无 BOM UTF-8 的默认文本解码不是 UTF-8，因此脚本
 Windows PowerShell 5.1 的控制台 stdout/stderr 可能采用当前 Windows 代码页，因此自动测试先捕获原始 bytes，再安全解码；测试不假定控制台输出本身为 UTF-8。JSON 和文本文件读取仍明确指定 `-Encoding UTF8`。
 
 `-InstalledExecutable` 会强制验证文件存在。FileVersion/ProductVersion 是可选增强检查：若缺失，脚本会给出非致命说明并继续；若可读取且规范化后与期望版本明确不一致，才会失败。
+
+## GitHub Actions 验收门禁
+
+本地验收可按需检查历史记录或安装版；CI 只检查可重复构建的 Release 资产。在正式 Windows Release 工作流中，资产、SHA256SUMS 和 manifest 生成后，会以 `powershell.exe` 运行验收脚本，并传入 `-SkipHistoryCheck` 与 `-SkipInstalledAppCheck`。这避免读取 runner 上无关的用户历史目录或启动 GUI。
+
+正式 GitHub Release 上传位于验收步骤之后：验收失败会使 job 失败，因而不会发布正式资产。在 Actions 日志中搜索 `RELEASE_ACCEPTANCE_RESULT`；只有出现 `RELEASE_ACCEPTANCE_RESULT = OK` 才表示允许进入发布步骤。

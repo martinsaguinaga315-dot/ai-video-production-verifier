@@ -13,3 +13,10 @@
 - JSON 文件读取仍明确指定 `-Encoding UTF8`，不依赖控制台代码页。
 - 安装程序 FileVersion/ProductVersion 改为可选增强检查：没有版本资源不会阻止验收；可读取且明确不兼容时才失败。
 - 补充仅缺失 release manifest 的失败测试，并保留中文路径、UTF-8 无 BOM 中文历史 JSON 与疑似 API Key 的隔离测试。
+
+## v0.3.1-02 CI 验收门禁
+
+- 修改 `.github/workflows/release-windows.yml`：在构建并生成安装包、Portable ZIP、SHA256SUMS 和 manifest 后，正式 Release 上传前运行 Windows 验收脚本。
+- CI 使用工作流既有的 `VERSION` 环境变量和当前 `${{ github.sha }}`；跳过历史与安装版检查，只验证可重复构建的发布资产。
+- 新增 `tests/test_release_workflow_acceptance.py`，覆盖 PowerShell 调用、必需参数、版本/提交来源、无绕过配置以及验收步骤先于正式上传。
+- 测试结果：现有本地验收测试 `8 passed`；新增工作流测试 `2 passed`；关联发布测试 `29 passed`；完整 pytest `247 passed`。

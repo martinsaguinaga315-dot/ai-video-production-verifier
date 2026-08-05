@@ -103,12 +103,14 @@ function Invoke-ReleaseAcceptance {
     foreach ($field in @('git_commit', 'version')) { if ($null -eq $manifest.PSObject.Properties[$field] -or [string]::IsNullOrWhiteSpace([string]$manifest.$field)) { throw "Manifest field is missing or empty: $field" } }
     if ($manifest.git_commit -ne $ExpectedCommit) { throw "Manifest git_commit does not match ExpectedCommit" }
     if ($manifest.version -ne $ExpectedVersion) { throw "Manifest version does not match ExpectedVersion" }
+    Write-Output 'Manifest verification passed'
     foreach ($asset in @(@($setup, $setupName), @($portable, $portableName))) {
         $expected = Get-ExpectedSha256 $checksums $asset[1]; $actual = (Get-FileHash -LiteralPath $asset[0] -Algorithm SHA256).Hash.ToLowerInvariant()
         if ($actual -ne $expected) { throw "SHA256 mismatch for $($asset[1])" }
     }
     Write-Output 'SHA256 verification passed for Setup and Portable assets'
     Test-PortableZip $portable
+    Write-Output 'Portable ZIP structure verification passed'
     if (-not $SkipHistoryCheck) { if ([string]::IsNullOrWhiteSpace($HistoryDirectory)) { $HistoryDirectory = Join-Path $env:LOCALAPPDATA 'AIVideoProductionVerifier\creator_history' }; Test-HistoryDirectory $HistoryDirectory }
     if (-not $SkipInstalledAppCheck -and -not [string]::IsNullOrWhiteSpace($InstalledExecutable)) {
         Assert-NonEmptyFile $InstalledExecutable 'Installed executable'
