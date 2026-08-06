@@ -27,9 +27,9 @@ from creator_desktop.director_review import DirectorReviewFrame
 from creator_desktop.facts_review import FactsReviewFrame, show_json_dialog
 from creator_desktop.natural_language_view import NaturalLanguageView
 from creator_desktop.mode_switcher import MODE_AI, MODE_CREATOR, MODE_PROFESSIONAL, ModeSwitcher
-from creator_desktop.ui_components import SecondaryButton, StatusText
+from creator_desktop.ui_components import PageTitle, PrimaryButton, SecondaryButton, SoftCard, StatusText
 from creator_desktop.ui_background import AmbientBackground
-from creator_desktop.ui_theme import APP_BACKGROUND, WINDOW_HEIGHT, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WINDOW_WIDTH
+from creator_desktop.ui_theme import APP_BACKGROUND, MAIN_CONTENT_WIDE, PAGE_GUTTER, TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY, WINDOW_HEIGHT, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WINDOW_WIDTH
 from creator_desktop.ui_errors import friendly_error
 from creator_desktop.verification_controller import VerificationController
 from creator_import.extraction_errors import CreatorImportError, LLMRequestError
@@ -146,28 +146,57 @@ class MainWindow(ctk.CTk):
 
     def _build_professional(self) -> None:
         host = self.professional_host
-        files = ctk.CTkFrame(host); files.grid(row=0, column=0, padx=12, pady=8, sticky="ew"); files.grid_columnconfigure(1, weight=1)
-        self._path_row(files, 0, "facts.json", self.facts_path, self._choose_facts)
-        self._path_row(files, 1, "director_output.json", self.output_path, self._choose_output)
-        controls = ctk.CTkFrame(host); controls.grid(row=1, column=0, padx=12, pady=8, sticky="ew")
-        ctk.CTkRadioButton(controls, text="仅本地硬规则", variable=self.semantic_mode, value="local").pack(side="left", padx=12, pady=10)
-        ctk.CTkRadioButton(controls, text="硬规则 + DeepSeek语义审计", variable=self.semantic_mode, value="semantic").pack(side="left", padx=8)
-        self.start_button = ctk.CTkButton(controls, text="开始核验", command=self._start); self.start_button.pack(side="right", padx=12)
-        ctk.CTkButton(controls, text="API设置", command=self._open_api_settings).pack(side="right", padx=6)
-        ctk.CTkLabel(controls, textvariable=self.api_status).pack(side="right", padx=8)
-        ctk.CTkButton(controls, text="加载错误示例", command=lambda: self._load_example("unknown_character_error")).pack(side="right", padx=6)
-        ctk.CTkButton(controls, text="加载正常示例", command=lambda: self._load_example("clean")).pack(side="right", padx=6)
-        info = ctk.CTkFrame(host); info.grid(row=2, column=0, padx=12, pady=8, sticky="ew")
-        ctk.CTkLabel(info, textvariable=self.status).pack(side="left", padx=12, pady=10)
-        ctk.CTkLabel(info, textvariable=self.summary, font=ctk.CTkFont(weight="bold")).pack(side="right", padx=12)
-        self.results = ctk.CTkScrollableFrame(host, label_text="问题列表"); self.results.grid(row=4, column=0, padx=12, pady=8, sticky="nsew")
-        self.export_button = ctk.CTkButton(host, text="导出JSON报告", command=self._export, state="disabled"); self.export_button.grid(row=5, column=0, padx=12, pady=8, sticky="e")
+        self._build_professional_light_layout(host)
 
-    def _path_row(self, parent, row, label, variable, command) -> None:
-        ctk.CTkLabel(parent, text=label, width=150, anchor="w").grid(row=row, column=0, padx=12, pady=8)
-        ctk.CTkEntry(parent, textvariable=variable).grid(row=row, column=1, padx=8, pady=8, sticky="ew")
-        ctk.CTkButton(parent, text="选择文件", width=90, command=command).grid(row=row, column=2, padx=4, pady=8)
-        ctk.CTkButton(parent, text="清除", width=60, command=lambda: variable.set("")).grid(row=row, column=3, padx=(0, 12), pady=8)
+    def _build_professional_light_layout(self, host) -> None:
+        host.grid_rowconfigure(0, weight=1)
+        content = ctk.CTkFrame(host, fg_color="transparent", width=MAIN_CONTENT_WIDE)
+        content.grid(row=0, column=0, padx=PAGE_GUTTER, pady=(12, 18), sticky="new")
+        content.grid_columnconfigure(0, weight=1)
+        content.grid_rowconfigure(5, weight=1)
+        PageTitle(content, text="专业 JSON 核验").grid(row=0, column=0, pady=(10, 3))
+        ctk.CTkLabel(content, text="导入事实数据和导演输出，执行结构化规则核验。", text_color=TEXT_SECONDARY).grid(row=1, column=0, pady=(0, 14))
+
+        self.professional_files_card = SoftCard(content, height=138)
+        self.professional_files_card.grid(row=2, column=0, sticky="ew")
+        files = self.professional_files_card.content
+        files.grid_columnconfigure(1, weight=1)
+        self._light_path_row(files, 0, "facts.json", self.facts_path, self._choose_facts)
+        self._light_path_row(files, 1, "director_output.json", self.output_path, self._choose_output)
+
+        self.professional_controls_card = SoftCard(content, height=82)
+        self.professional_controls_card.grid(row=3, column=0, pady=(14, 0), sticky="ew")
+        controls = self.professional_controls_card.content
+        ctk.CTkRadioButton(controls, text="仅本地硬规则", variable=self.semantic_mode, value="local").pack(side="left", padx=(20, 10), pady=18)
+        ctk.CTkRadioButton(controls, text="硬规则 + DeepSeek语义审计", variable=self.semantic_mode, value="semantic").pack(side="left", padx=8)
+        self.start_button = PrimaryButton(controls, text="开始核验", width=142, command=self._start)
+        self.start_button.pack(side="right", padx=20, pady=18)
+        SecondaryButton(controls, text="加载错误示例", width=108, command=lambda: self._load_example("unknown_character_error")).pack(side="right", padx=8, pady=18)
+        SecondaryButton(controls, text="加载正常示例", width=108, command=lambda: self._load_example("clean")).pack(side="right", pady=18)
+
+        self.professional_status_card = SoftCard(content, height=76)
+        self.professional_status_card.grid(row=4, column=0, pady=(14, 0), sticky="ew")
+        info = self.professional_status_card.content
+        ctk.CTkLabel(info, text="当前说明", text_color=TEXT_MUTED, font=ctk.CTkFont(size=12)).pack(anchor="w", padx=20, pady=(13, 0))
+        StatusText(info, textvariable=self.status).pack(side="left", padx=20, pady=(2, 12))
+        ctk.CTkLabel(info, textvariable=self.summary, text_color=TEXT_PRIMARY, font=ctk.CTkFont(weight="bold")).pack(side="right", padx=20, pady=(2, 12))
+
+        self.professional_results_card = SoftCard(content, height=300)
+        self.professional_results_card.grid(row=5, column=0, pady=(14, 0), sticky="nsew")
+        results_body = self.professional_results_card.content
+        results_body.grid_columnconfigure(0, weight=1)
+        results_body.grid_rowconfigure(1, weight=1)
+        ctk.CTkLabel(results_body, text="问题列表", text_color=TEXT_PRIMARY, font=ctk.CTkFont(size=18, weight="bold")).grid(row=0, column=0, padx=20, pady=(16, 8), sticky="w")
+        self.export_button = SecondaryButton(results_body, text="导出 JSON 报告", width=126, command=self._export, state="disabled")
+        self.export_button.grid(row=0, column=0, padx=20, pady=(12, 6), sticky="e")
+        self.results = ctk.CTkScrollableFrame(results_body, fg_color="transparent", label_text="")
+        self.results.grid(row=1, column=0, padx=14, pady=(0, 14), sticky="nsew")
+
+    def _light_path_row(self, parent, row, label, variable, command) -> None:
+        ctk.CTkLabel(parent, text=label, text_color=TEXT_PRIMARY, width=170, anchor="w").grid(row=row, column=0, padx=(20, 8), pady=10)
+        ctk.CTkEntry(parent, textvariable=variable, fg_color="#FAFBFD", border_color="#DCE3EC").grid(row=row, column=1, padx=8, pady=10, sticky="ew")
+        SecondaryButton(parent, text="选择文件", width=90, command=command).grid(row=row, column=2, padx=4, pady=10)
+        SecondaryButton(parent, text="清除", width=64, command=lambda: variable.set("")).grid(row=row, column=3, padx=(4, 20), pady=10)
 
     def _switch_mode(self, value: str) -> None:
         if getattr(self, "creator_generation_view", None) is not None and self.creator_generation_view.generate_button.cget("state") == "disabled":
