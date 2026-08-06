@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented here.
 
+## v0.3.2
+
+Release date: 2026-08-06
+
+### Added
+
+- Added a unified single-button mode switcher.
+- Added a stable light desktop design system and reusable UI components.
+- Added desktop-width layout coverage for the Standard Creator and Professional JSON workspaces.
+
+### Improved
+
+- Reworked the AI Creator home page around creative input, production settings, and recent projects.
+- Unified the top navigation and visual language across AI Creator, Standard Creator, and Professional JSON modes.
+- Updated Standard Creator to use a desktop two-input-card layout.
+- Updated Professional JSON to use separate file, verification-control, status, and issue-list areas.
+- Removed duplicate in-page API status and API settings controls.
+- Improved minimum-window usability, spacing, button hierarchy, and content width.
+
+### Compatibility
+
+- Existing generation, analysis, verification, history, import, and export protocols are unchanged.
+- API Key storage and usage are unchanged.
+- Creator history JSON, `GenerationResult`, `StoryboardDraft`, and verification-report formats are unchanged.
+
 ## v0.3.1 Windows Release acceptance and publishing safety
 
 - Added repeatable Windows Release acceptance for Setup, Portable ZIP, SHA256SUMS, manifest metadata, UTF-8 creator history, and API-key leakage checks.
