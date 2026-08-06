@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import queue
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from tkinter import filedialog, messagebox
@@ -25,6 +26,10 @@ from creator_desktop.credentials import CredentialError, has_saved_api_key, load
 from creator_desktop.director_review import DirectorReviewFrame
 from creator_desktop.facts_review import FactsReviewFrame, show_json_dialog
 from creator_desktop.natural_language_view import NaturalLanguageView
+from creator_desktop.mode_switcher import MODE_AI, MODE_CREATOR, MODE_PROFESSIONAL, ModeSwitcher
+from creator_desktop.ui_components import SecondaryButton, StatusText
+from creator_desktop.ui_background import AmbientBackground
+from creator_desktop.ui_theme import APP_BACKGROUND, WINDOW_HEIGHT, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WINDOW_WIDTH
 from creator_desktop.ui_errors import friendly_error
 from creator_desktop.verification_controller import VerificationController
 from creator_import.extraction_errors import CreatorImportError, LLMRequestError
@@ -44,12 +49,29 @@ def _logger() -> logging.Logger:
     return logger
 
 
+def _recent_project_title(record: dict, maximum: int = 16) -> str:
+    """Make a compact, safe project label without changing history data."""
+    source = str(record.get("name") or record.get("title") or record.get("idea") or "未命名创作")
+    source = " ".join(source.split())
+    return source if len(source) <= maximum else source[:maximum] + "…"
+
+
+def _recent_project_detail(record: dict) -> str:
+    created_at = str(record.get("created_at") or "")
+    try:
+        time_text = datetime.fromisoformat(created_at.replace("Z", "+00:00")).astimezone().strftime("今天 %H:%M")
+    except ValueError:
+        time_text = "最近保存"
+    return f"15 秒 · {time_text}   ›"
+
+
 class MainWindow(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
         self.title(APP_NAME)
-        self.geometry("1080x760")
-        self.minsize(920, 650)
+        self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
+        self.minsize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
+        self.configure(fg_color=APP_BACKGROUND)
         self._log, self._controller, self._analysis = _logger(), VerificationController(), AnalysisController()
         self._creator_generation_events: queue.Queue[dict[str, object]] = queue.Queue()
         self.creator_generation_controller = CreatorGenerationController(self._creator_generation_events)
@@ -72,14 +94,27 @@ class MainWindow(ctk.CTk):
 
     def _build(self) -> None:
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(2, weight=1)
-        ctk.CTkLabel(self, text="AI视频制作核验器", font=ctk.CTkFont(size=24, weight="bold")).grid(row=0, column=0, padx=24, pady=(16, 4), sticky="w")
-        self.mode = ctk.StringVar(value="普通创作者模式")
-        ctk.CTkSegmentedButton(self, values=["AI 创作生成", "普通创作者模式", "专业JSON模式"], variable=self.mode, command=self._switch_mode).grid(row=1, column=0, padx=24, pady=6, sticky="w")
-        self.creator_generation_host, self.creator_host, self.professional_host = ctk.CTkFrame(self), ctk.CTkFrame(self), ctk.CTkFrame(self)
-        self.creator_generation_host.grid(row=2, column=0, padx=16, pady=4, sticky="nsew")
-        self.creator_host.grid(row=2, column=0, padx=16, pady=4, sticky="nsew")
-        self.professional_host.grid(row=2, column=0, padx=16, pady=4, sticky="nsew")
+        self.grid_rowconfigure(1, weight=1)
+        self.ambient_background = AmbientBackground(self)
+        self.ambient_background.place(x=0, y=0, relwidth=1, relheight=1)
+        self.ambient_background.tk.call("lower", self.ambient_background._w)
+        header = ctk.CTkFrame(self, fg_color="transparent", corner_radius=0)
+        header.grid(row=0, column=0, sticky="ew")
+        header.grid_columnconfigure(1, weight=1)
+        self.mode_switcher = ModeSwitcher(header, self._switch_mode)
+        self.mode_switcher.grid(row=0, column=0, padx=24, pady=16, sticky="w")
+        tools = ctk.CTkFrame(header, fg_color="transparent")
+        tools.grid(row=0, column=2, padx=24, pady=16, sticky="e")
+        SecondaryButton(tools, text="历史", width=76, command=self._open_creator_history_from_header).pack(side="left", padx=4)
+        StatusText(tools, textvariable=self.creator_api_status).pack(side="left", padx=12)
+        SecondaryButton(tools, text="设置", width=76, command=self._open_api_settings).pack(side="left", padx=4)
+        self.mode = ctk.StringVar(value="AI 创作生成")
+        self.creator_generation_host = ctk.CTkFrame(self, fg_color="transparent")
+        self.creator_host = ctk.CTkFrame(self, fg_color="transparent")
+        self.professional_host = ctk.CTkFrame(self, fg_color="transparent")
+        self.creator_generation_host.grid(row=1, column=0, sticky="nsew")
+        self.creator_host.grid(row=1, column=0, sticky="nsew")
+        self.professional_host.grid(row=1, column=0, sticky="nsew")
         self.creator_generation_host.grid_rowconfigure(0, weight=1); self.creator_generation_host.grid_columnconfigure(0, weight=1)
         self.creator_host.grid_rowconfigure(0, weight=1); self.creator_host.grid_columnconfigure(0, weight=1)
         self.professional_host.grid_rowconfigure(4, weight=1); self.professional_host.grid_columnconfigure(0, weight=1)
@@ -92,23 +127,18 @@ class MainWindow(ctk.CTk):
         self.creator_view.grid(row=0, column=0, sticky="nsew")
         self._build_creator_generation()
         self._build_professional()
-        self._switch_mode("普通创作者模式")
+        self._switch_mode(MODE_AI)
 
     def _build_creator_generation(self) -> None:
         host = self.creator_generation_host
-        navigation = ctk.CTkFrame(host, fg_color="transparent")
-        navigation.grid(row=1, column=0, padx=20, pady=(0, 8), sticky="ew")
-        ctk.CTkButton(navigation, text="创意输入", command=self._show_creator_generation_input).pack(side="left")
-        ctk.CTkButton(navigation, text="历史记录", command=self._show_creator_history).pack(side="left", padx=6)
-        self.creator_generation_last_button = ctk.CTkButton(navigation, text="查看上次结果", command=self._show_last_creator_result, state="disabled")
-        self.creator_generation_last_button.pack(side="right")
         self.creator_generation_view = CreatorGenerationView(host, self._on_creator_generate)
+        self._refresh_recent_creator_project()
         self.creator_generation_result_host = ctk.CTkFrame(host)
         self.creator_generation_result_host.grid_rowconfigure(0, weight=1)
         self.creator_generation_result_host.grid_columnconfigure(0, weight=1)
         self.creator_generation_result_frame = CreatorGenerationResultFrame(self.creator_generation_result_host)
         self.creator_generation_result_frame.grid(row=0, column=0, sticky="nsew")
-        ctk.CTkButton(self.creator_generation_result_host, text="返回创意输入", command=self._show_creator_generation_input).grid(
+        SecondaryButton(self.creator_generation_result_host, text="返回创意输入", command=self._show_creator_generation_input).grid(
             row=1, column=0, padx=20, pady=(0, 16), sticky="e"
         )
         self.creator_history_view = CreatorHistoryView(host, self._creator_history_store, self._show_history_result, self._delete_history_record)
@@ -140,12 +170,22 @@ class MainWindow(ctk.CTk):
         ctk.CTkButton(parent, text="清除", width=60, command=lambda: variable.set("")).grid(row=row, column=3, padx=(0, 12), pady=8)
 
     def _switch_mode(self, value: str) -> None:
+        if getattr(self, "creator_generation_view", None) is not None and self.creator_generation_view.generate_button.cget("state") == "disabled":
+            return
         self.creator_generation_host.grid_remove()
         self.creator_host.grid_remove()
         self.professional_host.grid_remove()
-        if value == "AI 创作生成":
+        mapping = {
+            MODE_AI: "AI 创作生成", "AI 创作生成": "AI 创作生成",
+            MODE_CREATOR: "普通创作者模式", "普通创作者模式": "普通创作者模式",
+            MODE_PROFESSIONAL: "专业JSON模式", "专业JSON模式": "专业JSON模式",
+        }
+        internal_value = mapping.get(value, value)
+        if hasattr(self, "mode"):
+            self.mode.set(internal_value)
+        if value == MODE_AI or internal_value == "AI 创作生成":
             self.creator_generation_host.grid()
-        elif value == "普通创作者模式":
+        elif internal_value == "普通创作者模式":
             self.creator_host.grid()
         else:
             self.professional_host.grid()
@@ -234,10 +274,30 @@ class MainWindow(ctk.CTk):
             self.creator_generation_view.show_error("已有生成任务正在运行。")
 
     def _show_creator_generation_input(self) -> None:
+        self._refresh_recent_creator_project()
         self.creator_generation_view.grid_remove()
         self.creator_generation_result_host.grid_remove()
         self.creator_history_view.grid_remove()
         self.creator_generation_view.grid(row=0, column=0, sticky="nsew")
+
+    def _open_creator_history_from_header(self) -> None:
+        if self.creator_generation_view.generate_button.cget("state") == "disabled":
+            return
+        self.mode_switcher.current_mode = MODE_AI
+        self.mode_switcher._update_button()
+        self._switch_mode(MODE_AI)
+        self._show_creator_history()
+
+    def _refresh_recent_creator_project(self) -> None:
+        if not hasattr(self, "creator_generation_view"):
+            return
+        records = self._creator_history_store.list_records()
+        if not records:
+            self.creator_generation_view.set_recent_project(None)
+            return
+        record = records[0]
+        title = _recent_project_title(record)
+        self.creator_generation_view.set_recent_project(title, _recent_project_detail(record), command=lambda: self._show_history_result(record))
 
     def _show_creator_generation_result(self) -> None:
         self.creator_generation_view.grid_remove()
