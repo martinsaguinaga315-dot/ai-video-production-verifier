@@ -9,7 +9,7 @@ from creator_desktop import app_paths
 def test_version_metadata_is_single_source_of_truth() -> None:
     assert app_version.APP_NAME == "AI视频制作核验器"
     assert app_version.APP_NAME_EN == "AI Video Production Verifier"
-    assert app_version.VERSION == "0.3.1"
+    assert app_version.VERSION == "0.3.2"
     assert app_version.PUBLISHER == "Muzifan AIGC"
 
 
