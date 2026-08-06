@@ -12,7 +12,9 @@ def root():
         app = ctk.CTk()
     except tk.TclError:
         pytest.skip("CustomTkinter requires an available display")
-    app.withdraw()
+    app.geometry("900x600")
+    app.deiconify()
+    app.update_idletasks()
     yield app
     app.destroy()
 
@@ -83,3 +85,32 @@ def test_callback_exception_is_not_exposed(view):
     frame.generate_button.invoke()
     assert frame.error_text.get() == "无法启动生成，请稍后重试。"
     assert "secret-api-key" not in frame.error_text.get()
+
+
+def test_more_requirements_toggles_without_losing_values(view):
+    frame, _ = view
+    fill(frame, style="电影感", goal="完成分镜")
+    assert frame.optional_open is False
+    frame.toggle_optional_requirements()
+    assert frame.optional_open is True
+    frame.toggle_optional_requirements()
+    assert frame.optional_open is False
+    assert frame.get_inputs()[1:] == ("电影感", "完成分镜")
+
+
+def test_character_count_and_generate_button_are_independent_controls(view):
+    frame, _ = view
+    assert frame.character_count_label is not frame.generate_button
+
+
+def test_character_count_is_before_generate_button_in_footer(view):
+    frame, _ = view
+    frame.update_idletasks()
+    assert frame.character_count_label.winfo_x() < frame.generate_button.winfo_x()
+
+
+def test_character_count_updates_with_idea_input(view):
+    frame, _ = view
+    frame.idea_textbox.insert("1.0", "四个字符")
+    frame._update_character_count()
+    assert frame.character_count.get() == "4 字"

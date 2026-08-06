@@ -1,7 +1,7 @@
 import queue
 from types import SimpleNamespace
 
-from creator_desktop.main_window import MainWindow
+from creator_desktop.main_window import MainWindow, _recent_project_title
 from story_generation.models import GenerationResult, GenerationStatus
 
 
@@ -95,6 +95,14 @@ def test_top_level_mode_supports_creator_and_preserves_existing_modes():
     assert window.creator_host.visible is True
     MainWindow._switch_mode(window, "专业JSON模式")
     assert window.professional_host.visible is True
+
+
+def test_recent_project_title_is_safely_truncated():
+    assert _recent_project_title({"idea": "城市办公穿越海边的长篇创意故事以及后续内容"}, maximum=16) == "城市办公穿越海边的长篇创意故事以…"
+
+
+def test_recent_project_title_normalizes_whitespace_and_uses_default_limit():
+    assert _recent_project_title({"idea": "  城市   办公  穿越 海边 的 长篇 创意  "}) == "城市 办公 穿越 海边 的 长篇…"
 
 
 def test_creator_generation_uses_local_api_key_and_controller(monkeypatch):
