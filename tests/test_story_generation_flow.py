@@ -19,6 +19,8 @@ def test_create_story_calls_client_and_returns_ai_json():
         idea="047进入地下七层外部接驳舱",
         style="中国工业硬科幻",
         goal="生成AI视频分镜",
+        target_duration_s=30,
+        aspect_ratio="9:16",
     )
 
     assert result == {"storyboard_id": "storyboard-001", "shots": []}
@@ -27,8 +29,17 @@ def test_create_story_calls_client_and_returns_ai_json():
     assert "JSON object" in system_prompt
     assert '"shots"' in system_prompt
     assert "非空数组" in system_prompt
-    assert "严格等于 60 秒" in system_prompt
+    assert "本次请求的目标时长" in system_prompt
     assert "禁止 Markdown" in system_prompt
     assert "禁止 ```json" in system_prompt
     assert "storyboard_generation" in user_prompt
+    assert "目标总时长：30 秒" in user_prompt
+    assert "画面比例：9:16" in user_prompt
+    assert "竖屏构图" in user_prompt
     assert "047进入地下七层外部接驳舱" in user_prompt
+
+
+def test_prompt_uses_an_arbitrary_347_second_duration():
+    client = MockDeepSeekClient()
+    StoryService(generator=CreatorGenerator(), client=client).create_story("创意", target_duration_s=347, aspect_ratio="16:9")
+    assert "目标总时长：347 秒" in client.calls[0][1]

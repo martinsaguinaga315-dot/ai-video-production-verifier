@@ -34,6 +34,8 @@ class CreatorGenerationController:
         idea: str,
         style: str | None = None,
         goal: str | None = None,
+        target_duration_s: float = 60,
+        aspect_ratio: str = "16:9",
         api_key: str | None = None,
     ) -> bool:
         if not idea or not idea.strip():
@@ -44,20 +46,20 @@ class CreatorGenerationController:
             self._running = True
         threading.Thread(
             target=self._run,
-            args=(idea, style, goal, api_key),
+            args=(idea, style, goal, target_duration_s, aspect_ratio, api_key),
             daemon=True,
             name="creator-generation-worker",
         ).start()
         return True
 
-    def _run(self, idea: str, style: str | None, goal: str | None, api_key: str | None) -> None:
+    def _run(self, idea: str, style: str | None, goal: str | None, target_duration_s: float, aspect_ratio: str, api_key: str | None) -> None:
         try:
             self._events.put({
                 "type": "status",
                 "message": "正在生成 Storyboard，必要时将执行一次 AI 修正。",
             })
             pipeline = self._pipeline_factory(api_key=api_key)
-            result = pipeline.create(idea=idea, style=style, goal=goal)
+            result = pipeline.create(idea=idea, style=style, goal=goal, target_duration_s=target_duration_s, aspect_ratio=aspect_ratio)
             self._events.put({"type": "complete", "result": result})
         except Exception as exc:
             self._events.put({"type": "error", "message": self._safe_error_message(exc)})

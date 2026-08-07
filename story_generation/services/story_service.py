@@ -43,14 +43,16 @@ class StoryService:
         idea: str,
         style: str | None = None,
         goal: str | None = None,
+        target_duration_s: float = 60,
+        aspect_ratio: str = "16:9",
     ) -> CreativeBrief:
         return CreativeBrief(
             brief_id="brief-user-idea",
             idea=idea,
             title=idea,
             language="zh-CN",
-            target_duration_s=60,
-            aspect_ratio="16:9",
+            target_duration_s=target_duration_s,
+            aspect_ratio=aspect_ratio,
             target_platform="AI video",
             target_audience="general",
             visual_style=[style] if style else [],
@@ -66,8 +68,10 @@ class StoryService:
         idea: str,
         style: str | None = None,
         goal: str | None = None,
+        target_duration_s: float = 60,
+        aspect_ratio: str = "16:9",
     ):
-        brief = self._build_brief(idea, style, goal)
+        brief = self._build_brief(idea, style, goal, target_duration_s, aspect_ratio)
         return self.generator.build_request(brief)
 
     def create_story(
@@ -75,16 +79,20 @@ class StoryService:
         idea: str,
         style: str | None = None,
         goal: str | None = None,
+        target_duration_s: float = 60,
+        aspect_ratio: str = "16:9",
     ) -> dict:
         if self.client is None:
             raise RuntimeError("DeepSeek client is required to create a story")
 
-        brief = self._build_brief(idea, style, goal)
+        brief = self._build_brief(idea, style, goal, target_duration_s, aspect_ratio)
         request = self.generator.build_request(brief)
         user_prompt = build_storyboard_prompt(
             idea=brief.idea,
             style=", ".join(brief.visual_style) or None,
             goal=", ".join(brief.must_include) or None,
+            target_duration_s=brief.target_duration_s,
+            aspect_ratio=brief.aspect_ratio,
         )
         user_prompt += f"\nGeneration request: {request.request_id}\nStage: {request.stage_name}\n"
         return self.client.generate_json(STORYBOARD_GENERATION_SYSTEM_PROMPT, user_prompt)
@@ -94,8 +102,10 @@ class StoryService:
         idea: str,
         style: str | None = None,
         goal: str | None = None,
+        target_duration_s: float = 60,
+        aspect_ratio: str = "16:9",
     ):
-        payload = self.create_story(idea, style, goal)
+        payload = self.create_story(idea, style, goal, target_duration_s, aspect_ratio)
         return StoryboardBuilder().build(payload)
 
     def repair_storyboard(self, storyboard: StoryboardDraft, issues: list[GenerationIssue], target_duration_s: float, parent_request_id: str | None = None) -> dict:

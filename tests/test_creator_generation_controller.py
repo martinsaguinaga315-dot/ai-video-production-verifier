@@ -16,8 +16,8 @@ class FakePipeline:
         self.release = release
         self.calls = []
 
-    def create(self, *, idea, style, goal):
-        self.calls.append({"idea": idea, "style": style, "goal": goal})
+    def create(self, *, idea, style, goal, target_duration_s=60, aspect_ratio="16:9"):
+        self.calls.append({"idea": idea, "style": style, "goal": goal, "target_duration_s": target_duration_s, "aspect_ratio": aspect_ratio})
         if self.started:
             self.started.set()
         if self.release:
@@ -60,7 +60,7 @@ def test_normal_generation_posts_status_and_original_result():
 
     assert [event["type"] for event in received] == ["status", "complete"]
     assert received[-1]["result"] is expected
-    assert pipeline.calls == [{"idea": "雨夜接驳", "style": "硬科幻", "goal": "生成分镜"}]
+    assert pipeline.calls == [{"idea": "雨夜接驳", "style": "硬科幻", "goal": "生成分镜", "target_duration_s": 60, "aspect_ratio": "16:9"}]
 
 
 def test_parameters_and_api_key_are_routed_only_to_their_expected_targets():
@@ -69,11 +69,11 @@ def test_parameters_and_api_key_are_routed_only_to_their_expected_targets():
     factory = FakePipelineFactory(pipeline)
     controller = CreatorGenerationController(events, factory)
 
-    controller.start(idea="创意", style="风格", goal="目标", api_key="secret-key")
+    controller.start(idea="创意", style="风格", goal="目标", target_duration_s=30, aspect_ratio="9:16", api_key="secret-key")
     received = events_until_complete(events)
 
     assert factory.calls == [{"api_key": "secret-key"}]
-    assert pipeline.calls == [{"idea": "创意", "style": "风格", "goal": "目标"}]
+    assert pipeline.calls == [{"idea": "创意", "style": "风格", "goal": "目标", "target_duration_s": 30, "aspect_ratio": "9:16"}]
     assert all("secret-key" not in str(event.get("message", "")) for event in received)
 
 

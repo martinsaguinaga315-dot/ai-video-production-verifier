@@ -56,13 +56,17 @@ class PageTitle(ctk.CTkLabel):
 
 
 class SettingsSummary(ctk.CTkFrame):
-    def __init__(self, master, on_adjust=None, **kwargs):
+    def __init__(self, master, on_adjust=None, textvariable=None, **kwargs):
         kwargs.setdefault("fg_color", "transparent")
         super().__init__(master, **kwargs)
         ctk.CTkLabel(self, text="制作设置", text_color=TEXT_MUTED, font=ctk.CTkFont(size=12)).pack(side="left")
-        ctk.CTkLabel(self, text="15 秒 · 16:9 · 自动镜头 · 中文输出", text_color=TEXT_SECONDARY).pack(side="left", padx=(8, 12))
+        self.summary_label = ctk.CTkLabel(self, textvariable=textvariable, text="60 秒 · 16:9 · 自动镜头 · 中文输出", text_color=TEXT_SECONDARY)
+        self.summary_label.pack(side="left", padx=(8, 12))
         if on_adjust is not None:
             SecondaryButton(self, text="调整制作设置", width=118, command=on_adjust).pack(side="right")
+
+    def set_summary(self, value: str) -> None:
+        self.summary_label.configure(text=value)
 
 
 class RecentProjectRow(SoftCard):

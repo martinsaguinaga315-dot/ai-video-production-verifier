@@ -1,13 +1,14 @@
 """Input view for AI Creator storyboard generation."""
 from __future__ import annotations
 
+import re
 from typing import Callable
 
 import customtkinter as ctk
 
-from creator_desktop.ui_components import SoftCard, PageTitle, PrimaryButton, RecentProjectRow, SettingsSummary, StatusText
+from creator_desktop.ui_components import SoftCard, PageTitle, PrimaryButton, RecentProjectRow, SecondaryButton, SettingsSummary, StatusText
 from creator_desktop.ui_theme import (
-    CARD_BORDER, CARD_INPUT, ERROR,
+    CARD_BACKGROUND, CARD_BORDER, CARD_INPUT, ERROR, RADIUS_CARD,
     RADIUS_INPUT, SPACE_LARGE, TEXT_MUTED, TEXT_SECONDARY,
 )
 
@@ -18,14 +19,22 @@ class CreatorGenerationView(ctk.CTkFrame):
     def __init__(
         self,
         master,
-        on_generate: Callable[[str, str | None, str | None], None],
+        on_generate: Callable[[str, str | None, str | None, int, str], None],
     ) -> None:
         super().__init__(master, fg_color="transparent")
         self._on_generate = on_generate
         self.api_status = ctk.StringVar(value="API：未配置")
         self.run_status = ctk.StringVar(value="准备就绪")
         self.error_text = ctk.StringVar(value="")
+        self.target_duration_s = ctk.IntVar(value=60)
+        self.aspect_ratio = ctk.StringVar(value="16:9")
+        self.settings_summary = ctk.StringVar()
         self.optional_open = False
+        self.settings_open = False
+        self._settings_controls = []
+        self.target_duration_s.trace_add("write", self._on_duration_changed)
+        self.aspect_ratio.trace_add("write", self._update_settings_summary)
+        self._update_settings_summary()
         self._build()
 
     def _build(self) -> None:
@@ -69,11 +78,47 @@ class CreatorGenerationView(ctk.CTkFrame):
         self.goal_entry = ctk.CTkEntry(self.optional, placeholder_text="例如：生成 60 秒 AI 视频分镜", corner_radius=RADIUS_INPUT)
         self.goal_entry.grid(row=1, column=1, padx=(6, 0), sticky="ew")
 
-        SettingsSummary(content).grid(row=4, column=0, pady=(14, 0), sticky="ew")
+        self.settings_summary_widget = SettingsSummary(content, on_adjust=self.toggle_settings, textvariable=self.settings_summary)
+        self.settings_summary_widget.grid(row=4, column=0, pady=(14, 0), sticky="ew")
+        self.settings_panel = ctk.CTkFrame(content, fg_color=CARD_BACKGROUND, border_width=1, border_color=CARD_BORDER, corner_radius=RADIUS_CARD)
+        self.settings_panel.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(self.settings_panel, text="制作设置", font=ctk.CTkFont(size=16, weight="bold"), anchor="w").grid(row=0, column=0, padx=18, pady=(14, 8), sticky="ew")
+        ctk.CTkLabel(self.settings_panel, text="制作时长", text_color=TEXT_SECONDARY, anchor="w").grid(row=1, column=0, padx=18, sticky="w")
+        duration_controls = ctk.CTkFrame(self.settings_panel, fg_color="transparent")
+        duration_controls.grid(row=2, column=0, padx=18, pady=(4, 10), sticky="ew")
+        duration_controls.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(duration_controls, text="3 秒", text_color=TEXT_MUTED).grid(row=0, column=0, padx=(0, 10))
+        self.duration_slider = ctk.CTkSlider(duration_controls, from_=3, to=600, number_of_steps=597, command=self._on_slider_duration)
+        self.duration_slider.set(self.target_duration_s.get())
+        self.duration_slider.grid(row=0, column=1, sticky="ew")
+        ctk.CTkLabel(duration_controls, text="600 秒", text_color=TEXT_MUTED).grid(row=0, column=2, padx=(10, 0))
+        precise_duration = ctk.CTkFrame(self.settings_panel, fg_color="transparent")
+        precise_duration.grid(row=3, column=0, padx=18, pady=(0, 8), sticky="w")
+        ctk.CTkLabel(precise_duration, text="精确时长：", text_color=TEXT_SECONDARY).pack(side="left")
+        self.duration_entry = ctk.CTkEntry(precise_duration, width=76, justify="center")
+        self.duration_entry.insert(0, str(self.target_duration_s.get()))
+        self.duration_entry.bind("<Return>", self._commit_duration_entry)
+        self.duration_entry.bind("<FocusOut>", self._commit_duration_entry)
+        self.duration_entry.pack(side="left", padx=6)
+        ctk.CTkLabel(precise_duration, text="秒", text_color=TEXT_SECONDARY).pack(side="left")
+        shortcuts = ctk.CTkFrame(self.settings_panel, fg_color="transparent")
+        shortcuts.grid(row=4, column=0, padx=18, pady=(0, 12), sticky="w")
+        ctk.CTkLabel(shortcuts, text="快捷：", text_color=TEXT_SECONDARY).pack(side="left", padx=(0, 4))
+        self.duration_shortcut_buttons = []
+        for duration in (15, 30, 60, 120, 300, 600):
+            button = SecondaryButton(shortcuts, text=str(duration), width=54, height=32, command=lambda value=duration: self._set_duration(value))
+            button.pack(side="left", padx=3)
+            self.duration_shortcut_buttons.append(button)
+        ctk.CTkLabel(self.settings_panel, text="画面比例", text_color=TEXT_SECONDARY, anchor="w").grid(row=5, column=0, padx=18, sticky="w")
+        self.aspect_selector = ctk.CTkSegmentedButton(self.settings_panel, values=["16:9", "9:16", "1:1", "4:3", "3:4", "21:9"], variable=self.aspect_ratio)
+        self.aspect_selector.grid(row=6, column=0, padx=18, pady=(4, 12), sticky="ew")
+        self.settings_done_button = SecondaryButton(self.settings_panel, text="完成", width=80, command=self.toggle_settings)
+        self.settings_done_button.grid(row=7, column=0, padx=18, pady=(0, 14), sticky="e")
+        self._settings_controls = [self.duration_slider, self.duration_entry, *self.duration_shortcut_buttons, self.aspect_selector, self.settings_done_button]
         self.error_label = ctk.CTkLabel(content, textvariable=self.error_text, text_color=ERROR, justify="left")
-        self.error_label.grid(row=5, column=0, pady=(5, 0), sticky="w")
+        self.error_label.grid(row=6, column=0, pady=(5, 0), sticky="w")
         self.recent_host = ctk.CTkFrame(content, fg_color="transparent")
-        self.recent_host.grid(row=6, column=0, pady=(28, 0), sticky="ew")
+        self.recent_host.grid(row=7, column=0, pady=(28, 0), sticky="ew")
         self.recent_empty = ctk.CTkLabel(self.recent_host, text="暂无最近项目", text_color=TEXT_MUTED)
         self.recent_empty.pack(anchor="w")
 
@@ -88,6 +133,42 @@ class CreatorGenerationView(ctk.CTkFrame):
         else:
             self.optional.grid_remove()
             self.more_button.configure(text="更多创作要求  ›")
+
+    def _update_settings_summary(self, *_args) -> None:
+        self.settings_summary.set(f"{self.target_duration_s.get()} 秒 · {self.aspect_ratio.get()} · 自动镜头 · 中文输出")
+
+    def _on_duration_changed(self, *_args) -> None:
+        self._update_settings_summary()
+        if hasattr(self, "duration_slider"):
+            self.duration_slider.set(self.target_duration_s.get())
+        if hasattr(self, "duration_entry"):
+            self.duration_entry.delete(0, "end")
+            self.duration_entry.insert(0, str(self.target_duration_s.get()))
+
+    def _set_duration(self, value: str | int) -> None:
+        """Apply a duration through the single authoritative IntVar."""
+        duration = max(3, min(600, int(value)))
+        self.target_duration_s.set(duration)
+
+    def _on_slider_duration(self, value: float) -> None:
+        self._set_duration(round(value))
+
+    def _commit_duration_entry(self, _event=None) -> bool:
+        value = self.duration_entry.get().strip()
+        if not re.fullmatch(r"\d+", value):
+            self.show_error("请输入 3～600 之间的整数秒数。")
+            return False
+        self._set_duration(value)
+        return True
+
+    def toggle_settings(self) -> None:
+        if self.generate_button.cget("state") == "disabled":
+            return
+        self.settings_open = not self.settings_open
+        if self.settings_open:
+            self.settings_panel.grid(row=5, column=0, pady=(10, 0), sticky="ew")
+        else:
+            self.settings_panel.grid_remove()
 
     def set_recent_project(self, title: str | None, detail: str = "", command=None) -> None:
         """Show at most one history entry without changing history persistence."""
@@ -115,6 +196,8 @@ class CreatorGenerationView(ctk.CTkFrame):
         self.style_entry.configure(state=state)
         self.goal_entry.configure(state=state)
         self.generate_button.configure(state=state)
+        for control in self._settings_controls:
+            control.configure(state=state)
         if message is not None:
             self.run_status.set(message)
         elif busy:
@@ -132,11 +215,13 @@ class CreatorGenerationView(ctk.CTkFrame):
     def _request_generation(self) -> None:
         self.clear_error()
         idea, style, goal = self.get_inputs()
+        if not self._commit_duration_entry():
+            return
         if not idea:
             self.show_error("请输入创意 idea 后再生成。")
             return
         try:
-            self._on_generate(idea, style, goal)
+            self._on_generate(idea, style, goal, self.target_duration_s.get(), self.aspect_ratio.get())
         except Exception:
             # The controller owns error classification; never expose callback details here.
             self.show_error("无法启动生成，请稍后重试。")
