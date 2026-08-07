@@ -133,15 +133,21 @@ class MainWindow(ctk.CTk):
         host = self.creator_generation_host
         self.creator_generation_view = CreatorGenerationView(host, self._on_creator_generate)
         self._refresh_recent_creator_project()
-        self.creator_generation_result_host = ctk.CTkFrame(host)
+        self.creator_generation_result_host = ctk.CTkFrame(host, fg_color="transparent")
         self.creator_generation_result_host.grid_rowconfigure(0, weight=1)
         self.creator_generation_result_host.grid_columnconfigure(0, weight=1)
-        self.creator_generation_result_frame = CreatorGenerationResultFrame(self.creator_generation_result_host)
-        self.creator_generation_result_frame.grid(row=0, column=0, sticky="nsew")
-        SecondaryButton(self.creator_generation_result_host, text="返回创意输入", command=self._show_creator_generation_input).grid(
-            row=1, column=0, padx=20, pady=(0, 16), sticky="e"
+        self.creator_generation_result_frame = CreatorGenerationResultFrame(
+            self.creator_generation_result_host,
+            on_back=self._show_creator_generation_input,
         )
-        self.creator_history_view = CreatorHistoryView(host, self._creator_history_store, self._show_history_result, self._delete_history_record)
+        self.creator_generation_result_frame.grid(row=0, column=0, sticky="nsew")
+        self.creator_history_view = CreatorHistoryView(
+            host,
+            self._creator_history_store,
+            self._show_history_result,
+            self._delete_history_record,
+            self._show_creator_generation_input,
+        )
         self._show_creator_generation_input()
 
     def _build_professional(self) -> None:
@@ -214,6 +220,8 @@ class MainWindow(ctk.CTk):
             self.mode.set(internal_value)
         if value == MODE_AI or internal_value == "AI 创作生成":
             self.creator_generation_host.grid()
+            if getattr(self, "creator_generation_view", None) is not None:
+                self._show_creator_generation_input()
         elif internal_value == "普通创作者模式":
             self.creator_host.grid()
         else:
@@ -277,7 +285,7 @@ class MainWindow(ctk.CTk):
         self._creator_script, self._creator_director, self._creator_client = script, director, client
         if self._analysis.start_facts(script, client): self.creator_view.set_busy(True, "正在读取剧本")
 
-    def _on_creator_generate(self, idea: str, style: str | None, goal: str | None) -> None:
+    def _on_creator_generate(self, idea: str, style: str | None, goal: str | None, target_duration_s: int = 60, aspect_ratio: str = "16:9") -> None:
         self.creator_generation_view.clear_error()
         try:
             api_key = load_api_key()
@@ -293,7 +301,14 @@ class MainWindow(ctk.CTk):
         self._active_creator_request = {"idea": idea, "style": style, "goal": goal}
         self.creator_generation_view.set_busy(True)
         try:
-            started = self.creator_generation_controller.start(idea=idea, style=style, goal=goal, api_key=api_key)
+            started = self.creator_generation_controller.start(
+                idea=idea,
+                style=style,
+                goal=goal,
+                target_duration_s=target_duration_s,
+                aspect_ratio=aspect_ratio,
+                api_key=api_key,
+            )
         except ValueError as exc:
             self.creator_generation_view.set_busy(False)
             self.creator_generation_view.show_error(str(exc))
@@ -329,9 +344,13 @@ class MainWindow(ctk.CTk):
         self.creator_generation_view.set_recent_project(title, _recent_project_detail(record), command=lambda: self._show_history_result(record))
 
     def _show_creator_generation_result(self) -> None:
+        # History results navigate within the AI host; do not call _switch_mode
+        # because selecting MODE_AI intentionally returns to the input subview.
+        self.creator_generation_host.grid(row=1, column=0, sticky="nsew")
         self.creator_generation_view.grid_remove()
         self.creator_history_view.grid_remove()
         self.creator_generation_result_host.grid(row=0, column=0, sticky="nsew")
+        self._log.info("history_result_host_shown")
 
     def _show_creator_history(self) -> None:
         self.creator_generation_view.grid_remove(); self.creator_generation_result_host.grid_remove()
@@ -346,16 +365,31 @@ class MainWindow(ctk.CTk):
         self._creator_history_store.delete(history_id)
 
     def _show_history_result(self, record: dict) -> None:
+        history_id = record.get("history_id", "unknown")
+        self._log.info("history_view_clicked history_id=%s", history_id)
         try:
-            result = GenerationResult.model_validate(record["result"])
-            if isinstance(result.artifact, dict):
-                result = result.model_copy(update={"artifact": StoryboardDraft.model_validate(result.artifact)})
+            self._log.info("history_result_validation_started history_id=%s", history_id)
+            raw_result = record["result"]
+            result = GenerationResult.model_validate(raw_result)
+            self._log.info("generation_result_validation_ok history_id=%s", history_id)
+            artifact = result.artifact
+            if isinstance(artifact, dict):
+                artifact = StoryboardDraft.model_validate(artifact)
+                result = result.model_copy(update={"artifact": artifact})
+            elif not isinstance(artifact, StoryboardDraft):
+                raise TypeError(f"Unsupported history artifact type: {type(artifact).__name__}")
+            self._log.info("storyboard_validation_ok history_id=%s", history_id)
         except Exception:
+            self._log.exception("Unable to restore creator history result history_id=%s", history_id)
+            messagebox.showerror("历史记录读取失败", "无法读取该历史结果，记录可能来自旧版本或数据已损坏。", parent=self)
             return
         self._last_creator_result = result
-        self.creator_generation_last_button.configure(state="normal")
+        if hasattr(self, "creator_generation_last_button"):
+            self.creator_generation_last_button.configure(state="normal")
+        self._log.info("history_result_render_started history_id=%s", history_id)
         self.creator_generation_result_frame.show_result(result)
         self._show_creator_generation_result()
+        self._log.info("history_result_render_completed history_id=%s", history_id)
 
     def _show_creator(self, widget) -> None:
         for child in self.creator_host.winfo_children(): child.grid_remove()

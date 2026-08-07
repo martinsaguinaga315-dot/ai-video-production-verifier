@@ -36,13 +36,13 @@ def test_selection_updates_mode_closes_menu_and_calls_callback():
     assert calls == [MODE_PROFESSIONAL]
 
 
-def test_selecting_current_mode_only_closes_menu():
+def test_selecting_current_mode_closes_menu_and_calls_callback():
     calls = []
     switcher = SimpleNamespace(current_mode=MODE_AI, is_open=True, _on_change=calls.append)
     switcher.close_menu = lambda: setattr(switcher, "is_open", False)
     ModeSwitcher.select(switcher, MODE_AI)
     assert switcher.is_open is False
-    assert calls == []
+    assert calls == [MODE_AI]
 
 
 def test_open_menu_is_visible_sized_lifted_and_selectable(root):

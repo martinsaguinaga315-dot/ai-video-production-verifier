@@ -124,3 +124,22 @@ def test_none_metadata_and_empty_shots_are_safe(frame):
 def test_display_never_contains_api_key(frame):
     frame.show_result(generation_result())
     assert "api_key" not in visible_text(frame).lower()
+
+
+def test_long_shot_text_uses_an_adaptive_card_with_separate_actions(frame):
+    long_text = "长文本提示词 " * 200
+    artifact = storyboard([{
+        "sequence": 1, "duration_s": 60, "camera": long_text, "action": long_text,
+        "performance": long_text, "first_frame_prompt": long_text, "video_prompt": long_text,
+    }])
+    frame.show_result(generation_result(artifact=artifact))
+    card = frame.shot_cards[0]
+    assert card.body.grid_info()["row"] == 1
+    assert card.actions.grid_info()["row"] == 2
+    assert len(card.actions.winfo_children()) == 3
+
+
+def test_result_root_uses_transparent_background(root):
+    result_frame = CreatorGenerationResultFrame(root)
+    assert result_frame.cget("fg_color") == "transparent"
+    result_frame.destroy()

@@ -85,8 +85,8 @@ class ModeSwitcher(ctk.CTkFrame):
         self._update_button()
 
     def select(self, mode: str):
-        changed = mode != self.current_mode
         self.current_mode = mode
         self.close_menu()
-        if changed:
-            self._on_change(mode)
+        # Selecting the active mode is also an explicit navigation request.
+        # In particular, AI Creator uses it to return from history/results.
+        self._on_change(mode)
