@@ -139,6 +139,7 @@ class MainWindow(ctk.CTk):
         self.creator_generation_result_frame = CreatorGenerationResultFrame(
             self.creator_generation_result_host,
             on_back=self._show_creator_generation_input,
+            on_configure_api_key=self._open_api_settings,
         )
         self.creator_generation_result_frame.grid(row=0, column=0, sticky="nsew")
         self.creator_history_view = CreatorHistoryView(

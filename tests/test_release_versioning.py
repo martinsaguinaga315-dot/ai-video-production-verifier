@@ -3,8 +3,8 @@ from pathlib import Path
 from app_version import VERSION
 
 
-def test_v032_release_metadata_and_workflows_are_dynamic():
-    assert VERSION == "0.3.2"
+def test_v033_release_metadata_and_workflows_are_dynamic():
+    assert VERSION == "0.3.3"
     installer = Path("packaging/installer.iss").read_text(encoding="utf-8")
     build_script = Path("packaging/build_windows.ps1").read_text(encoding="utf-8")
     portable_script = Path("packaging/package_portable.ps1").read_text(encoding="utf-8")
@@ -21,17 +21,17 @@ def test_v032_release_metadata_and_workflows_are_dynamic():
     assert "env.VERSION" in release and "env.VERSION" in build
 
 
-def test_v032_release_notes_list_dynamic_assets_and_no_history_format_change():
-    notes = Path("docs/RELEASE_v0.3.2.md").read_text(encoding="utf-8")
-    assert "v0.3.2" in notes
+def test_v033_release_notes_list_dynamic_assets_and_prompt_pack_persistence():
+    notes = Path("docs/RELEASE_v0.3.3.md").read_text(encoding="utf-8")
+    assert "v0.3.3" in notes
     for asset in (
-        "AI-Video-Production-Verifier-Setup-v0.3.2.exe",
-        "AI-Video-Production-Verifier-Portable-v0.3.2.zip",
+        "AI-Video-Production-Verifier-Setup-v0.3.3.exe",
+        "AI-Video-Production-Verifier-Portable-v0.3.3.zip",
         "SHA256SUMS.txt",
-        "release_manifest_v0.3.2.json",
+        "release_manifest_v0.3.3.json",
     ):
         assert asset in notes
-    assert "Creator history JSON format is unchanged" in notes
+    assert "Prompt Packs are saved locally by storyboard" in notes
 
 
 def test_v032_changelog_and_v031_history_release_notes_are_present():

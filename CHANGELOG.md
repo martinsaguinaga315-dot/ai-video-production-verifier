@@ -2,6 +2,35 @@
 
 All notable changes to this project are documented here.
 
+## v0.3.3
+
+Release date: 2026-08-09
+
+### Added
+
+- Added Production Prompt Packs for every storyboard shot: first-frame prompt, end-frame prompt, video prompt, negative prompt, and continuity requirements.
+- Added local Prompt Pack generation for all shots or selected shots, per-field copying, full-shot and full-pack copying, per-shot regeneration, and JSON export.
+- Added Prompt Pack persistence by storyboard, preserving provider, model, output language, and prompt content for later restoration.
+- Added DeepSeek AI Prompt generation with `deepseek-v4-flash` and `deepseek-v4-pro`.
+- Added local platform prompt adapters for Generic, Kling, Jimeng, Runway, and Veo. Platform exports do not overwrite the canonical Prompt Pack.
+
+### Improved
+
+- Strengthened production-prompt execution detail for composition, blocking, camera angle and height, lens feeling, depth of field, foreground/midground/background, lighting direction, color temperature, motion pacing, and focus behavior.
+- Improved first-frame and end-frame consistency; end frames are now specified as precise freeze-frame handoff states.
+- Added shot-specific negative constraints and continuity locks for identity, props, layout, lighting, action end states, and next-shot handoff.
+- Strengthened fact preservation so AI prompt enhancement does not invent unprovided characters, props, locations, wardrobe, story events, or environmental events.
+- Improved platform guidance: Kling, Jimeng, and Veo retain canonical field fidelity, while Runway keeps Negative out of its video-prompt workflow.
+
+### Fixed
+
+- Prompt Pack requests now explicitly use non-thinking mode, JSON mode, and an 8192-token limit to avoid empty content and length-limited DeepSeek V4 responses.
+- Improved DeepSeek response compatibility for missing `shot_id`, unknown fields, schema validation, and malformed or empty output; mismatched shot IDs remain rejected.
+- Classified DeepSeek API errors, AI prompt schema-validation errors, and local prompt-processing errors separately in the UI.
+- Preserved an existing Prompt Pack when an AI generation attempt fails.
+- Prevented `reasoning_content` from entering the UI, Prompt Packs, history, JSON exports, or logs.
+- Prevented platform adapters from rewriting canonical prompt content during export.
+
 ## v0.3.2
 
 Release date: 2026-08-06

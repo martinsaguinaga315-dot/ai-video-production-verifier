@@ -6,6 +6,17 @@ from typing import Any
 
 from openai import OpenAI
 
+DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
+SUPPORTED_DEEPSEEK_MODELS = ("deepseek-v4-flash", "deepseek-v4-pro")
+DEFAULT_MAX_TOKENS = 4096
+
+
+class DeepSeekApiError(RuntimeError):
+    def __init__(self, message: str, *, status_code: int | None = None, error_code: str | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.error_code = error_code
+
 
 class DeepSeekClient:
     """
@@ -25,7 +36,7 @@ class DeepSeekClient:
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "deepseek-chat",
+        model: str = DEFAULT_DEEPSEEK_MODEL,
         timeout: int = 45,
     ):
         self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
@@ -39,6 +50,9 @@ class DeepSeekClient:
         self,
         system_prompt: str,
         user_prompt: str,
+        *,
+        thinking: bool | None = None,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
     ) -> dict[str, Any]:
         """
         Generate a JSON object through DeepSeek's OpenAI-compatible API.
@@ -55,21 +69,36 @@ class DeepSeekClient:
             timeout=self.timeout,
         )
 
-        try:
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                response_format={"type": "json_object"},
-            )
-            content = response.choices[0].message.content
-        except Exception as exc:
-            raise RuntimeError("DeepSeek API request failed") from exc
-
+        content = None
+        finish_reason = None
+        for attempt in range(2):
+            try:
+                request: dict[str, Any] = {
+                    "model": self.model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "max_tokens": max_tokens,
+                }
+                if thinking is not None:
+                    request["extra_body"] = {"thinking": {"type": "enabled" if thinking else "disabled"}}
+                response = client.chat.completions.create(**request)
+                choice = response.choices[0]
+                content = choice.message.content
+                finish_reason = choice.finish_reason
+            except Exception as exc:
+                raise self._api_error(exc) from exc
+            if content:
+                break
         if not content:
-            raise RuntimeError("DeepSeek returned an empty response")
+            if finish_reason == "length":
+                raise DeepSeekApiError(
+                    "DeepSeek output reached the length limit without complete content",
+                    error_code="length_empty",
+                )
+            raise DeepSeekApiError("DeepSeek returned an empty response", error_code="empty_content")
 
         result = self._parse_json_object(content)
 
@@ -77,6 +106,17 @@ class DeepSeekClient:
             raise RuntimeError("DeepSeek response JSON must be an object")
 
         return result
+
+    @staticmethod
+    def _api_error(exc: Exception) -> DeepSeekApiError:
+        status = getattr(exc, "status_code", None)
+        body = getattr(exc, "body", None)
+        code = body.get("code") if isinstance(body, dict) else None
+        if isinstance(exc, TimeoutError) or "timeout" in type(exc).__name__.lower():
+            return DeepSeekApiError("DeepSeek request timed out", error_code="timeout")
+        if "connection" in type(exc).__name__.lower() or "connect" in str(exc).lower():
+            return DeepSeekApiError("Unable to connect to DeepSeek API", error_code="connection")
+        return DeepSeekApiError("DeepSeek API request failed", status_code=status, error_code=code)
 
     @classmethod
     def _parse_json_object(cls, content: str) -> dict[str, Any]:
