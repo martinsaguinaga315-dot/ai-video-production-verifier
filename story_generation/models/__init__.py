@@ -27,6 +27,7 @@ from .generation import (
     ThinkingMode,
 )
 from .outline import PlotBeat, PlotOutline
+from .prompt_pack import PromptPack, PromptPackShot
 from .scene import SceneDefinition, ScenePlan
 from .storyboard import StoryboardDraft, StoryboardShot
 
@@ -36,7 +37,7 @@ __all__ = [
     "GenerationIssueSeverity", "GenerationMetadata", "GenerationRequest",
     "GenerationResult", "GenerationSettings", "GenerationStatus",
     "GenerationUsage", "LocationDefinition", "PlotBeat", "PlotOutline",
-    "PropDefinition", "SceneDefinition", "ScenePlan", "ShotState", "SourceKind",
+    "PromptPack", "PromptPackShot", "PropDefinition", "SceneDefinition", "ScenePlan", "ShotState", "SourceKind",
     "StoryBible", "StoryboardDraft", "StoryboardShot", "ThinkingMode",
     "WorldBible",
 ]
