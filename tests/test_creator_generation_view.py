@@ -103,6 +103,28 @@ def test_character_count_and_generate_button_are_independent_controls(view):
     assert frame.character_count_label is not frame.generate_button
 
 
+def test_dynamic_sections_refresh_the_page_scroll_region(view):
+    frame, _ = view
+    refreshes = []
+    frame.page_scroll.refresh_scroll_region = lambda: refreshes.append(True)
+
+    frame.toggle_optional_requirements()
+    frame.toggle_settings()
+    frame.update_idletasks()
+
+    assert frame.page_scroll._parent_canvas.winfo_exists()
+    assert len(refreshes) == 2
+
+
+def test_creation_card_keeps_the_designed_content_width(view):
+    frame, _ = view
+    frame.update_idletasks()
+
+    assert frame.creation_card.cget("width") == 820
+    assert frame.idea_textbox.cget("width") == 200
+    assert frame.idea_textbox.winfo_width() == 792 * frame._get_widget_scaling()
+
+
 def test_character_count_is_before_generate_button_in_footer(view):
     frame, _ = view
     frame.update_idletasks()

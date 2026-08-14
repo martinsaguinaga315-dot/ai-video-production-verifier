@@ -6,7 +6,7 @@ from typing import Callable
 
 import customtkinter as ctk
 
-from creator_desktop.ui_components import SoftCard, PageTitle, PrimaryButton, RecentProjectRow, SecondaryButton, SettingsSummary, StatusText
+from creator_desktop.ui_components import PageScrollContainer, SoftCard, PageTitle, PrimaryButton, RecentProjectRow, SecondaryButton, SettingsSummary, StatusText
 from creator_desktop.ui_theme import (
     CARD_BACKGROUND, CARD_BORDER, CARD_INPUT, ERROR, RADIUS_CARD,
     RADIUS_INPUT, SPACE_LARGE, TEXT_MUTED, TEXT_SECONDARY,
@@ -40,7 +40,10 @@ class CreatorGenerationView(ctk.CTkFrame):
     def _build(self) -> None:
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
-        content = ctk.CTkFrame(self, fg_color="transparent", width=820)
+        self.page_scroll = PageScrollContainer(self)
+        self.page_scroll.grid(row=0, column=0, sticky="nsew")
+        self.page_scroll.grid_columnconfigure(0, weight=1)
+        content = ctk.CTkFrame(self.page_scroll, fg_color="transparent", width=820)
         content.grid(row=0, column=0, padx=SPACE_LARGE, pady=(12, 18), sticky="n")
         content.grid_columnconfigure(0, weight=1)
 
@@ -134,6 +137,8 @@ class CreatorGenerationView(ctk.CTkFrame):
             self.optional.grid_remove()
             self.more_button.configure(text="更多创作要求  ›")
 
+        self._refresh_page_scroll()
+
     def _update_settings_summary(self, *_args) -> None:
         self.settings_summary.set(f"{self.target_duration_s.get()} 秒 · {self.aspect_ratio.get()} · 自动镜头 · 中文输出")
 
@@ -169,6 +174,12 @@ class CreatorGenerationView(ctk.CTkFrame):
             self.settings_panel.grid(row=5, column=0, pady=(10, 0), sticky="ew")
         else:
             self.settings_panel.grid_remove()
+
+        self._refresh_page_scroll()
+
+    def _refresh_page_scroll(self) -> None:
+        """Refresh after optional rows change the page's requested height."""
+        self.after_idle(self.page_scroll.refresh_scroll_region)
 
     def set_recent_project(self, title: str | None, detail: str = "", command=None) -> None:
         """Show at most one history entry without changing history persistence."""
