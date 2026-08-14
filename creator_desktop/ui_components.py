@@ -3,21 +3,43 @@ from __future__ import annotations
 
 import customtkinter as ctk
 from creator_desktop.ui_theme import (
-    ACCENT, ACCENT_HOVER, CARD_BACKGROUND, CARD_BORDER, CARD_SHADOW, RADIUS_BUTTON,
+    ACCENT, ACCENT_HOVER, CARD_BACKGROUND, CARD_BORDER, RADIUS_BUTTON,
     RADIUS_CARD, TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY,
 )
 
 
 class SoftCard(ctk.CTkFrame):
-    """Stable two-layer card: a restrained offset shadow and white content surface."""
+    """A single, geometry-safe card which keeps the historic ``content`` API."""
+    def __init__(self, master, **kwargs):
+        fixed_size = "width" in kwargs or "height" in kwargs
+        kwargs.setdefault("fg_color", CARD_BACKGROUND)
+        kwargs.setdefault("corner_radius", RADIUS_CARD)
+        kwargs.setdefault("border_width", 1)
+        kwargs.setdefault("border_color", CARD_BORDER)
+        super().__init__(master, **kwargs)
+        # A placed surface with relheight=1 extended past dynamic cards and left
+        # white redraw trails while a CTkScrollableFrame canvas moved underneath.
+        # Keeping content as the card itself preserves every existing caller.
+        self.content = self
+        if fixed_size:
+            # The former placed surface did not propagate child geometry. Preserve
+            # explicit card dimensions (notably the 820px creation card) now that
+            # children are direct descendants of this single-layer frame.
+            self.grid_propagate(False)
+            self.pack_propagate(False)
+
+
+class PageScrollContainer(ctk.CTkScrollableFrame):
+    """A page-level scroll viewport with an explicit refresh hook for dynamic rows."""
     def __init__(self, master, **kwargs):
         kwargs.setdefault("fg_color", "transparent")
         super().__init__(master, **kwargs)
-        self.shadow = ctk.CTkFrame(self, fg_color=CARD_SHADOW, corner_radius=RADIUS_CARD)
-        self.shadow.place(x=0, y=6, relwidth=1, relheight=1)
-        self.surface = ctk.CTkFrame(self, fg_color=CARD_BACKGROUND, corner_radius=RADIUS_CARD, border_width=1, border_color=CARD_BORDER)
-        self.surface.place(x=0, y=0, relwidth=1, relheight=1)
-        self.content = self.surface
+
+    def refresh_scroll_region(self) -> None:
+        """Synchronize the canvas after a child is shown, hidden, or resized."""
+        self.update_idletasks()
+        canvas = self._parent_canvas
+        canvas.configure(scrollregion=canvas.bbox("all"))
 
 
 class PrimaryButton(ctk.CTkButton):
